@@ -9,7 +9,23 @@ const C = {
   green: "#4ade80", red: "#f87171",
 };
 
-const DEFAULT_GOALS = { calories: 2400, protein: 160, carbs: 260, fat: 75 };
+const DEFAULT_GOALS = {
+  calories: 2600, protein: 170, carbs: 290, fat: 75,
+  fiber: 30, sugar: 50, sodium: 2300, caffeine: 200, water: 2500, alcohol: 0
+};
+
+const GOAL_META = [
+  { key: "calories", label: "Kalorien", unit: "kcal", color: "#c8f135", icon: "🔥" },
+  { key: "protein",  label: "Protein",  unit: "g",    color: "#ff6b35", icon: "💪" },
+  { key: "carbs",    label: "Carbs",    unit: "g",    color: "#4fc3f7", icon: "🌾" },
+  { key: "fat",      label: "Fett",     unit: "g",    color: "#ffd54f", icon: "🥑" },
+  { key: "fiber",    label: "Ballaststoffe", unit: "g", color: "#a78bfa", icon: "🥦" },
+  { key: "sugar",    label: "Zucker",   unit: "g",    color: "#f472b6", icon: "🍬" },
+  { key: "sodium",   label: "Natrium",  unit: "mg",   color: "#94a3b8", icon: "🧂" },
+  { key: "water",    label: "Wasser",   unit: "ml",   color: "#38bdf8", icon: "💧" },
+  { key: "caffeine", label: "Koffein",  unit: "mg",   color: "#d97706", icon: "☕" },
+  { key: "alcohol",  label: "Alkohol",  unit: "g",    color: "#f87171", icon: "🍺" },
+];
 
 const SAMPLE_RECIPES = [
   { id: 1, name: "Overnight Oats", calories: 420, protein: 18, carbs: 65, fat: 9, tags: ["breakfast"] },
@@ -30,8 +46,11 @@ async function loadTodayMeals() {
 
 async function saveMeal(meal) {
   const { data } = await supabase.from("meals").insert([{
-    name: meal.name, calories: meal.calories, protein: meal.protein,
-    carbs: meal.carbs, fat: meal.fat, estimated: meal.estimated || false, date: today()
+    name: meal.name, calories: meal.calories || 0,
+    protein: meal.protein || 0, carbs: meal.carbs || 0, fat: meal.fat || 0,
+    fiber: meal.fiber || 0, sugar: meal.sugar || 0, sodium: meal.sodium || 0,
+    caffeine: meal.caffeine || 0, water: meal.water || 0, alcohol: meal.alcohol || 0,
+    estimated: meal.estimated || false, date: today()
   }]).select().single();
   return data;
 }
