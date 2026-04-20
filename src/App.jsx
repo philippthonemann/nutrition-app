@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabase";
 
 const C = {
   bg: "#080808", surface: "#111", card: "#161616", border: "#222",
@@ -8,7 +9,7 @@ const C = {
   green: "#4ade80", red: "#f87171",
 };
 
-const GOALS = { calories: 2400, protein: 160, carbs: 260, fat: 75 };
+const DEFAULT_GOALS = { calories: 2400, protein: 160, carbs: 260, fat: 75 };
 
 const SAMPLE_RECIPES = [
   { id: 1, name: "Overnight Oats", calories: 420, protein: 18, carbs: 65, fat: 9, tags: ["breakfast"] },
@@ -19,18 +20,51 @@ const SAMPLE_RECIPES = [
   { id: 6, name: "Pasta Bolognese", calories: 680, protein: 38, carbs: 78, fat: 18, tags: ["dinner"] },
 ];
 
-const BODY_HISTORY = [
-  { date: "2025-01-01", weight: 82.4, waist: 88, chest: 101, hip: 96 },
-  { date: "2025-02-01", weight: 81.1, waist: 86, chest: 100, hip: 95 },
-  { date: "2025-03-01", weight: 80.3, waist: 85, chest: 100, hip: 94 },
-  { date: "2025-04-01", weight: 79.8, waist: 83, chest: 99, hip: 93 },
-];
+// Supabase helpers
+const today = () => new Date().toISOString().split("T")[0];
 
-const WEEK_DATA = [
-  { day: "Mo", cal: 2280 }, { day: "Di", cal: 2510 }, { day: "Mi", cal: 2190 },
-  { day: "Do", cal: 2620 }, { day: "Fr", cal: 2350 }, { day: "Sa", cal: 1980 },
-  { day: "So", cal: 0, today: true },
-];
+async function loadTodayMeals() {
+  const { data } = await supabase.from("meals").select("*").eq("date", today()).order("created_at");
+  return data || [];
+}
+
+async function saveMeal(meal) {
+  const { data } = await supabase.from("meals").insert([{
+    name: meal.name, calories: meal.calories, protein: meal.protein,
+    carbs: meal.carbs, fat: meal.fat, estimated: meal.estimated || false, date: today()
+  }]).select().single();
+  return data;
+}
+
+async function deleteMeal(id) {
+  await supabase.from("meals").delete().eq("id", id);
+}
+
+async function loadBodyMeasurements() {
+  const { data } = await supabase.from("body_measurements").select("*").order("date");
+  return data || [];
+}
+
+async function saveBodyMeasurement(entry) {
+  const { data } = await supabase.from("body_measurements").insert([entry]).select().single();
+  return data;
+}
+
+async function loadGoals() {
+  const { data } = await supabase.from("goals").select("*").order("created_at", { ascending: false }).limit(1).single();
+  return data || DEFAULT_GOALS;
+}
+
+async function saveGoals(goals) {
+  await supabase.from("goals").insert([goals]);
+}
+
+async function loadWeekMeals() {
+  const start = new Date();
+  start.setDate(start.getDate() - 6);
+  const { data } = await supabase.from("meals").select("date, calories").gte("date", start.toISOString().split("T")[0]);
+  return data || [];
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -97,13 +131,26 @@ async function callClaude(system, userContent, imageBase64 = null) {
 
 function TodayTab({ logged, setLogged, goals }) {
   const totals = logged.reduce((a, m) => ({
-    calories: a.calories + m.calories, protein: a.protein + m.protein,
-    carbs: a.carbs + m.carbs, fat: a.fat + m.fat,
+    calories: a.calories + (m.calories || 0), protein: a.protein + (m.protein || 0),
+    carbs: a.carbs + (m.carbs || 0), fat: a.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const calPct = Math.min((totals.calories / goals.calories) * 100, 100);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
   const filtered = SAMPLE_RECIPES.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+
+  const handleAdd = async (recipe) => {
+    setSaving(true);
+    const saved = await saveMeal(recipe);
+    if (saved) setLogged(p => [...p, saved]);
+    setShowAdd(false); setSearch(""); setSaving(false);
+  };
+
+  const handleRemove = async (id) => {
+    await deleteMeal(id);
+    setLogged(p => p.filter(m => m.id !== id));
+  };
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
@@ -167,8 +214,8 @@ function TodayTab({ logged, setLogged, goals }) {
                 fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 6,
               }}/>
             {filtered.map(r => (
-              <div key={r.id} onClick={() => { setLogged(p => [...p, { ...r, id: Date.now() }]); setShowAdd(false); setSearch(""); }}
-                style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", display: "flex", justifyContent: "space-between" }}
+              <div key={r.id} onClick={() => !saving && handleAdd(r)}
+                style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", display: "flex", justifyContent: "space-between", opacity: saving ? 0.5 : 1 }}
                 onMouseEnter={e => e.currentTarget.style.background = C.surface}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <div>
@@ -191,7 +238,7 @@ function TodayTab({ logged, setLogged, goals }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{m.calories}</div>
-                <button onClick={() => setLogged(p => p.filter(x => x.id !== m.id))}
+                <button onClick={() => handleRemove(m.id)}
                   style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18 }}>×</button>
               </div>
             </div>
@@ -667,11 +714,11 @@ function WeekTab({ goals }) {
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("today");
-  const [logged, setLogged] = useState([
-    { id: 1, name: "Overnight Oats", calories: 420, protein: 18, carbs: 65, fat: 9 },
-    { id: 2, name: "Protein Shake + Banana", calories: 310, protein: 35, carbs: 38, fat: 4 },
-  ]);
-  const [goals] = useState(GOALS);
+  const [logged, setLogged] = useState([]);
+  const [goals, setGoals] = useState(DEFAULT_GOALS);
+  const [loading, setLoading] = useState(true);
+
+  const dateStr = new Date().toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" }).toUpperCase();
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -685,7 +732,20 @@ export default function App() {
       input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     `;
     document.head.appendChild(style);
+
+    // Load data from Supabase
+    Promise.all([loadTodayMeals(), loadGoals()]).then(([meals, g]) => {
+      setLogged(meals);
+      setGoals(g);
+      setLoading(false);
+    });
   }, []);
+
+  const handleAddFromScan = async (meal) => {
+    const saved = await saveMeal(meal);
+    if (saved) setLogged(p => [...p, saved]);
+    setTab("today");
+  };
 
   const navItems = [
     { key: "today", icon: "◉", label: "Heute" },
@@ -694,11 +754,18 @@ export default function App() {
     { key: "week", icon: "▦", label: "Woche" },
   ];
 
+  if (loading) return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: C.accent, letterSpacing: 2 }}>Nutrition</div>
+      <div style={{ color: C.muted, fontSize: 13 }}>Daten werden geladen…</div>
+    </div>
+  );
+
   return (
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingBottom: 90 }}>
       {/* Header */}
       <div style={{ padding: "44px 20px 16px" }}>
-        <div style={{ color: C.muted, fontSize: 11, fontFamily: "'DM Mono',monospace", letterSpacing: 2 }}>SO, 20. APRIL 2025</div>
+        <div style={{ color: C.muted, fontSize: 11, fontFamily: "'DM Mono',monospace", letterSpacing: 2 }}>{dateStr}</div>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 2, marginTop: 2 }}>
           Philipp's <span style={{ color: C.accent }}>Nutrition</span>
         </div>
@@ -706,7 +773,7 @@ export default function App() {
 
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals}/>}
-        {tab === "scan" && <ScanTab onAdd={(m) => { setLogged(p => [...p, m]); setTab("today"); }}/>}
+        {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
         {tab === "week" && <WeekTab goals={goals}/>}
       </div>
