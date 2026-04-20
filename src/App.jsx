@@ -877,6 +877,7 @@ export default function App() {
     { key: "scan", icon: "⬡", label: "Scan" },
     { key: "body", icon: "◈", label: "Körper" },
     { key: "week", icon: "▦", label: "Woche" },
+    { key: "goals", icon: "◎", label: "Ziele" },
   ];
 
   if (loading) return (
@@ -900,7 +901,8 @@ export default function App() {
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
-        {tab === "week" && <WeekTab goals={goals}/>}
+        {tab === "week" && <WeekTab goals={goals}/> }
+        {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
 
       {/* Bottom Nav */}
