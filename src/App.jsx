@@ -758,6 +758,81 @@ function WeekTab({ goals }) {
   );
 }
 
+// ── GOALS TAB ─────────────────────────────────────────────────────────────────
+function GoalsTab({ goals, setGoals }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(goals);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { id, created_at, ...rest } = form;
+    await saveGoals(rest);
+    setGoals(rest);
+    setSaving(false); setSaved(true); setEditing(false);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div style={{ animation: "fadeIn .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1 }}>
+            Tages<span style={{ color: C.accent }}>ziele</span>
+          </div>
+          <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Empfohlen für Ausdauersport ~85kg</div>
+        </div>
+        <button onClick={() => editing ? handleSave() : setEditing(true)} disabled={saving} style={{
+          background: editing ? C.accent : C.card, color: editing ? "#000" : C.mutedLight,
+          border: `1px solid ${editing ? "transparent" : C.border}`,
+          borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 600,
+          cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+        }}>
+          {saving ? "Speichert…" : saved ? "✓ Gespeichert" : editing ? "Speichern" : "Anpassen"}
+        </button>
+      </div>
+
+      {editing && (
+        <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 12, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: C.accent, fontSize: 12 }}>Werte anpassen — tippe in die Felder</span>
+          <button onClick={() => setForm(DEFAULT_GOALS)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, cursor: "pointer" }}>Reset</button>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {GOAL_META.map(m => {
+          const val = form[m.key] ?? 0;
+          return (
+            <div key={m.key} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>{m.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{m.label}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{m.unit} / Tag</div>
+                  </div>
+                </div>
+                {editing ? (
+                  <input type="number" value={form[m.key] ?? ""} onChange={e => setForm(p => ({ ...p, [m.key]: parseFloat(e.target.value) || 0 }))}
+                    style={{ width: 90, background: C.surface, border: `1px solid ${m.color}`, borderRadius: 8, padding: "8px 10px", color: m.color, fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, outline: "none", textAlign: "right" }}/>
+                ) : (
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: m.color, letterSpacing: 1 }}>
+                    {val}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {editing && (
+        <button onClick={() => { setEditing(false); setForm(goals); }} style={{ width: "100%", marginTop: 12, background: "none", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, padding: "11px 0", fontSize: 13, cursor: "pointer" }}>Abbrechen</button>
+      )}
+    </div>
+  );
+}
+
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("today");
