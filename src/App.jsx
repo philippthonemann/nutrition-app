@@ -683,12 +683,31 @@ Analysiere Trend und gib Empfehlungen.`);
 
 // ── WEEK TAB ──────────────────────────────────────────────────────────────────
 function WeekTab({ goals }) {
+  const [weekData, setWeekData] = useState([]);
+
+  useEffect(() => {
+    loadWeekMeals().then(meals => {
+      const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+      const todayIdx = (new Date().getDay() + 6) % 7;
+      const result = days.map((day, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (todayIdx - i));
+        const dateStr = date.toISOString().split("T")[0];
+        const cal = meals.filter(m => m.date === dateStr).reduce((a, m) => a + (m.calories || 0), 0);
+        return { day, cal, today: i === todayIdx };
+      });
+      setWeekData(result);
+    });
+  }, []);
+
+  const avgCal = weekData.length ? Math.round(weekData.filter(d => d.cal > 0).reduce((a, d) => a + d.cal, 0) / Math.max(weekData.filter(d => d.cal > 0).length, 1)) : 0;
+
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
       <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1, marginBottom: 16 }}>Wochenübersicht</div>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          {WEEK_DATA.map(d => {
+          {weekData.map(d => {
             const pct = Math.min((d.cal / goals.calories) * 100, 100);
             return (
               <div key={d.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
@@ -704,7 +723,7 @@ function WeekTab({ goals }) {
       </div>
       <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1, marginBottom: 16 }}>Ø Wochenschnitt</div>
-        {[["Kalorien", 2328, goals.calories, C.accent, "kcal"], ["Protein", 142, goals.protein, C.protein, "g"], ["Carbs", 241, goals.carbs, C.carbs, "g"], ["Fett", 68, goals.fat, C.fat, "g"]].map(([l, v, g, c, u]) => (
+        {[["Kalorien", avgCal, goals.calories, C.accent, "kcal"]].map(([l, v, g, c, u]) => (
           <div key={l} style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 13, color: C.mutedLight }}>{l}</span>
@@ -735,10 +754,13 @@ export default function App() {
     link.rel = "stylesheet"; document.head.appendChild(link);
     const style = document.createElement("style");
     style.textContent = `
+      * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+      html, body { background: #080808; overflow-x: hidden; max-width: 100vw; }
+      body { overscroll-behavior: none; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
       @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,.4); } 50% { box-shadow: 0 0 0 12px rgba(248,113,113,0); } }
-      * { -webkit-tap-highlight-color: transparent; }
       input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+      #root { background: #080808; min-height: 100vh; }
     `;
     document.head.appendChild(style);
 
@@ -788,13 +810,15 @@ export default function App() {
       </div>
 
       {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", padding: "12px 0 22px" }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", padding: "12px 0 28px", zIndex: 100 }}>
+        <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto" }}>
         {navItems.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === t.key ? C.accent : C.muted, transition: "color .15s ease" }}>
             <span style={{ fontSize: tab === t.key ? 22 : 18, transition: "font-size .15s ease" }}>{t.icon}</span>
             <span style={{ fontSize: 10, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>{t.label}</span>
           </button>
         ))}
+        </div>
       </div>
     </div>
   );
