@@ -476,7 +476,15 @@ Antworte NUR mit JSON, kein Markdown:
 
 // ── BODY TAB ──────────────────────────────────────────────────────────────────
 function BodyTab() {
-  const [history, setHistory] = useState(BODY_HISTORY);
+  const [history, setHistory] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    loadBodyMeasurements().then(data => {
+      setHistory(data);
+      setLoadingData(false);
+    });
+  }, []);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ weight: "", waist: "", chest: "", hip: "" });
   const [analysis, setAnalysis] = useState(null);
@@ -487,9 +495,10 @@ function BodyTab() {
   const prev = history[history.length - 2];
   const delta = (key) => latest && prev ? (latest[key] - prev[key]).toFixed(1) : null;
 
-  const addEntry = () => {
+  const addEntry = async () => {
     const entry = { date: new Date().toISOString().split("T")[0], ...Object.fromEntries(Object.entries(form).map(([k, v]) => [k, parseFloat(v) || 0])) };
-    setHistory(p => [...p, entry]);
+    const saved = await saveBodyMeasurement(entry);
+    if (saved) setHistory(p => [...p, saved]);
     setForm({ weight: "", waist: "", chest: "", hip: "" });
     setShowForm(false);
   };
