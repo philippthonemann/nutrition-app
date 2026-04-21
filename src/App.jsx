@@ -906,13 +906,26 @@ export default function App() {
 
       {/* Bottom Nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
-        <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto" }}>
-        {navItems.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === t.key ? C.accent : C.muted, transition: "color .15s ease" }}>
-            <span style={{ fontSize: tab === t.key ? 22 : 18, transition: "font-size .15s ease" }}>{t.icon}</span>
-            <span style={{ fontSize: 10, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>{t.label}</span>
+        <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto", padding: "8px 0 24px", alignItems: "center" }}>
+          <button onClick={() => setTab("today")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "today" ? C.accent : C.muted }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Heute</span>
           </button>
-        ))}
+          <button onClick={() => setTab("body")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "body" ? C.accent : C.muted }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7z"/></svg>
+            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Körper</span>
+          </button>
+          <button onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? C.accent : C.muted }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
+            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Woche</span>
+          </button>
+          <button onClick={() => setTab("goals")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "goals" ? C.accent : C.muted }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Ziele</span>
+          </button>
         </div>
       </div>
     </div>
