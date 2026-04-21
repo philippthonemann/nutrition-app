@@ -298,8 +298,8 @@ function ScanTab({ onAdd }) {
   const [adjusting, setAdjusting] = useState(false);
   // Manual mode
   const [manual, setManual] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "" });
-  const fileRef = React.useRef();
-  const recognitionRef = React.useRef(null);
+  const fileRef = useRef();
+  const recognitionRef = useRef(null);
 
   const switchMode = (m) => {
     setMode(m); setResult(null); setText(""); setImageB64(null); setImagePreview(null);
