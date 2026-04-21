@@ -27,14 +27,15 @@ const GOAL_META = [
   { key: "alcohol",  label: "Alkohol",  unit: "g",    color: "#f87171", icon: "🍺" },
 ];
 
-const SAMPLE_RECIPES = [
-  { id: 1, name: "Overnight Oats", calories: 420, protein: 18, carbs: 65, fat: 9, tags: ["breakfast"] },
-  { id: 2, name: "Chicken & Rice Bowl", calories: 610, protein: 52, carbs: 58, fat: 12, tags: ["lunch", "high-protein"] },
-  { id: 3, name: "Protein Shake + Banana", calories: 310, protein: 35, carbs: 38, fat: 4, tags: ["snack"] },
-  { id: 4, name: "Salmon & Süßkartoffel", calories: 520, protein: 44, carbs: 42, fat: 16, tags: ["dinner"] },
-  { id: 5, name: "Greek Yogurt Bowl", calories: 280, protein: 24, carbs: 32, fat: 5, tags: ["snack"] },
-  { id: 6, name: "Pasta Bolognese", calories: 680, protein: 38, carbs: 78, fat: 18, tags: ["dinner"] },
-];
+const SAMPLE_RECIPES = [];
+
+async function loadNotionRecipes() {
+  try {
+    const res = await fetch('/api/notion');
+    if (!res.ok) return [];
+    return await res.json();
+  } catch { return []; }
+}
 
 // Supabase helpers
 const today = () => new Date().toISOString().split("T")[0];
@@ -157,7 +158,17 @@ function TodayTab({ logged, setLogged, goals }) {
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const filtered = SAMPLE_RECIPES.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+  const [recipes, setRecipes] = useState([]);
+  const [loadingRecipes, setLoadingRecipes] = useState(false);
+
+  useEffect(() => {
+    if (showAdd && recipes.length === 0) {
+      setLoadingRecipes(true);
+      loadNotionRecipes().then(data => { setRecipes(data); setLoadingRecipes(false); });
+    }
+  }, [showAdd]);
+
+  const filtered = recipes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
   const handleAdd = async (recipe) => {
     setSaving(true);
@@ -232,6 +243,7 @@ function TodayTab({ logged, setLogged, goals }) {
                 padding: "10px 12px", color: C.text, fontFamily: "'DM Sans',sans-serif",
                 fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 6,
               }}/>
+            {loadingRecipes && <div style={{ color: "#555", fontSize: 13, padding: "10px 0", textAlign: "center" }}>Lade Rezepte aus Notion…</div>}
             {filtered.map(r => (
               <div key={r.id} onClick={() => !saving && handleAdd(r)}
                 style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", display: "flex", justifyContent: "space-between", opacity: saving ? 0.5 : 1 }}
