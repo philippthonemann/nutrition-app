@@ -229,7 +229,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan }) {
       <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>Mahlzeiten</div>
-          <button onClick={() => setShowAdd(!showAdd); if (!showAdd) window.dispatchEvent(new CustomEvent("openScan"))} style={{
+          <button onClick={onOpenScan} style={{
             background: C.accent, color: "#000", border: "none", borderRadius: 8,
             width: 28, height: 28, fontSize: 20, cursor: "pointer", fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center",
