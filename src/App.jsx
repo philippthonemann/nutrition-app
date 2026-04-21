@@ -149,7 +149,7 @@ async function callClaude(system, userContent, imageBase64 = null) {
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function TodayTab({ logged, setLogged, goals }) {
+function TodayTab({ logged, setLogged, goals, onOpenScan }) {
   const totals = logged.reduce((a, m) => ({
     calories: a.calories + (m.calories || 0), protein: a.protein + (m.protein || 0),
     carbs: a.carbs + (m.carbs || 0), fat: a.fat + (m.fat || 0),
@@ -229,7 +229,7 @@ function TodayTab({ logged, setLogged, goals }) {
       <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>Mahlzeiten</div>
-          <button onClick={() => setShowAdd(!showAdd)} style={{
+          <button onClick={() => setShowAdd(!showAdd); if (!showAdd) window.dispatchEvent(new CustomEvent("openScan"))} style={{
             background: C.accent, color: "#000", border: "none", borderRadius: 8,
             width: 28, height: 28, fontSize: 20, cursor: "pointer", fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -339,7 +339,8 @@ Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,
   };
 
   const adjustRecipe = async () => {
-    if (!selectedRecipe || !recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); return; }
+    if (!selectedRecipe) return;
+    if (!recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); return; }
     setAdjusting(true);
     const sys = `Du bist Ernährungsexperte. Passe die Nährwerte eines Rezepts basierend auf dem Hinweis an.
 Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"note":"..."}`;
@@ -403,9 +404,9 @@ Passe die Nährwerte entsprechend an.`;
                 <span style={{ fontSize: 20 }}>✏️</span>
                 <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Beschreibung</div><div style={{ fontSize: 11, color: C.muted }}>Text oder Sprache</div></div>
               </div>
-              <button onClick={toggleVoice} style={{ width: 36, height: 36, borderRadius: "50%", border: `1.5px solid ${recording ? C.red : voiceAppended ? C.green : C.border}`, background: recording ? `${C.red}20` : C.surface, color: recording ? C.red : C.mutedLight, fontSize: 16, cursor: "pointer", animation: recording ? "pulse 1.2s ease infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>🎙️</button>
+
             </div>
-            {recording && <div style={{ margin: "0 14px 10px", background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red, animation: "pulse 1s ease infinite" }}/><span style={{ color: C.red, fontSize: 12 }}>Aufnahme läuft…</span></div>}
+
             <div style={{ padding: "0 14px 14px" }}>
               <textarea value={text} onChange={e => setText(e.target.value)} placeholder={imageB64 ? "Hinweise zum Foto: 'extra groß', 'ca. 400g'…" : "z.B. 'Döner mit Fladenbrot, extra Fleisch'"} rows={3} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", resize: "none", boxSizing: "border-box", lineHeight: 1.6 }}/>
             </div>
@@ -930,7 +931,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: "0 20px" }}>
-        {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals}/>}
+        {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
         {tab === "week" && <WeekTab goals={goals}/> }
