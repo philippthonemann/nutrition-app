@@ -133,11 +133,11 @@ async function callClaude(system, userContent, imageBase64 = null) {
     ? [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
        { type: "text", text: userContent }]
     : userContent;
-  const res = await fetch("/api/analyze", {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5", max_tokens: 1000,
+      model: "claude-sonnet-4-20250514", max_tokens: 1000,
       system, messages: [{ role: "user", content }]
     })
   });
@@ -877,7 +877,6 @@ export default function App() {
     { key: "scan", icon: "⬡", label: "Scan" },
     { key: "body", icon: "◈", label: "Körper" },
     { key: "week", icon: "▦", label: "Woche" },
-    { key: "goals", icon: "◎", label: "Ziele" },
   ];
 
   if (loading) return (
@@ -901,8 +900,7 @@ export default function App() {
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
-        {tab === "week" && <WeekTab goals={goals}/> }
-        {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
+        {tab === "week" && <WeekTab goals={goals}/>}
       </div>
 
       {/* Bottom Nav */}
