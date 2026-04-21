@@ -281,7 +281,7 @@ function TodayTab({ logged, setLogged, goals }) {
 
 // ── AI SCAN TAB ───────────────────────────────────────────────────────────────
 function ScanTab({ onAdd }) {
-  // All inputs are always visible and combinable
+  const [mode, setMode] = useState(null); // "ai"|"notion"|"manual"
   const [text, setText] = useState("");
   const [imageB64, setImageB64] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -289,216 +289,237 @@ function ScanTab({ onAdd }) {
   const [result, setResult] = useState(null);
   const [recording, setRecording] = useState(false);
   const [voiceAppended, setVoiceAppended] = useState(false);
-  const fileRef = useRef();
-  const recognitionRef = useRef(null);
+  // Notion mode
+  const [recipes, setRecipes] = useState([]);
+  const [loadingRecipes, setLoadingRecipes] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [recipeNote, setRecipeNote] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
+  // Manual mode
+  const [manual, setManual] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "" });
+  const fileRef = React.useRef();
+  const recognitionRef = React.useRef(null);
 
-  const activeInputs = [imageB64 && "foto", text.trim() && "text"].filter(Boolean);
+  const switchMode = (m) => {
+    setMode(m); setResult(null); setText(""); setImageB64(null); setImagePreview(null);
+    setSelectedRecipe(null); setRecipeNote("");
+    if (m === "notion" && recipes.length === 0) {
+      setLoadingRecipes(true);
+      loadNotionRecipes().then(data => { setRecipes(data); setLoadingRecipes(false); });
+    }
+  };
 
   const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const full = ev.target.result;
-      setImagePreview(full);
-      setImageB64(full.split(",")[1]);
-    };
+    reader.onload = (ev) => { setImagePreview(ev.target.result); setImageB64(ev.target.result.split(",")[1]); };
     reader.readAsDataURL(file);
   };
 
   const toggleVoice = () => {
-    if (recording) {
-      recognitionRef.current?.stop();
-      setRecording(false);
-    } else {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { alert("Spracherkennung wird von diesem Browser nicht unterstützt"); return; }
-      const rec = new SR();
-      rec.lang = "de-DE"; rec.continuous = false; rec.interimResults = false;
-      rec.onresult = (e) => {
-        const t = e.results[0][0].transcript;
-        // Append transcript to existing text (don't overwrite)
-        setText(prev => prev ? `${prev} — ${t}` : t);
-        setVoiceAppended(true);
-        setTimeout(() => setVoiceAppended(false), 2000);
-      };
-      rec.onend = () => setRecording(false);
-      rec.start(); recognitionRef.current = rec;
-      setRecording(true);
-    }
+    if (recording) { recognitionRef.current?.stop(); setRecording(false); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Nutze das Mikrofon auf der iOS Tastatur"); return; }
+    const rec = new SR(); rec.lang = "de-DE"; rec.continuous = false; rec.interimResults = false;
+    rec.onresult = (e) => { const t = e.results[0][0].transcript; setText(prev => prev ? prev + " — " + t : t); setVoiceAppended(true); setTimeout(() => setVoiceAppended(false), 2000); };
+    rec.onend = () => setRecording(false); rec.start(); recognitionRef.current = rec; setRecording(true);
   };
 
-  const analyze = async () => {
+  const analyzeAI = async () => {
     if (!text.trim() && !imageB64) return;
     setLoading(true); setResult(null);
-    const sys = `Du bist Ernährungsexperte. Schätze die Nährwerte der Mahlzeit basierend auf allen verfügbaren Infos (Bild + Texthinweise).
-Nutze die Texthinweise um deine Bild-Analyse zu verfeinern — z.B. wenn jemand sagt "extra Portion" oder "ca. 300g".
-Antworte NUR mit JSON, kein Markdown:
-{"name":"...", "calories":X, "protein":X, "carbs":X, "fat":X, "confidence":"hoch|mittel|niedrig", "note":"kurze Erklärung was du berücksichtigt hast", "inputs":"was du analysiert hast (Foto/Text/beides)"}`;
-    const userPrompt = text.trim()
-      ? `Zusätzliche Hinweise vom Nutzer: "${text.trim()}"\n\nSchätze die Nährwerte möglichst genau.`
-      : "Schätze die Nährwerte dieser Mahlzeit.";
+    const sys = `Du bist Ernährungsexperte. Schätze die Nährwerte der Mahlzeit basierend auf allen verfügbaren Infos.
+Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"confidence":"hoch|mittel|niedrig","note":"..."}`;
     try {
-      const raw = await callClaude(sys, userPrompt, imageB64 || null);
+      const raw = await callClaude(sys, text.trim() || "Schätze die Nährwerte.", imageB64);
       setResult(JSON.parse(raw));
-    } catch {
-      setResult({ name: "Fehler", calories: 0, protein: 0, carbs: 0, fat: 0, note: "Analyse fehlgeschlagen – bitte nochmal versuchen." });
-    }
+    } catch { setResult({ name: "Fehler", calories: 0, protein: 0, carbs: 0, fat: 0, note: "Analyse fehlgeschlagen" }); }
     setLoading(false);
   };
 
-  const reset = () => {
-    setResult(null); setText(""); setImageB64(null); setImagePreview(null);
+  const adjustRecipe = async () => {
+    if (!selectedRecipe || !recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); return; }
+    setAdjusting(true);
+    const sys = `Du bist Ernährungsexperte. Passe die Nährwerte eines Rezepts basierend auf dem Hinweis an.
+Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"note":"..."}`;
+    const prompt = `Rezept: ${selectedRecipe.name}
+Original Nährwerte: ${selectedRecipe.calories} kcal, ${selectedRecipe.protein}g Protein, ${selectedRecipe.carbs}g Carbs, ${selectedRecipe.fat}g Fett
+Hinweis: ${recipeNote}
+Passe die Nährwerte entsprechend an.`;
+    try {
+      const raw = await callClaude(sys, prompt, null);
+      const adjusted = JSON.parse(raw);
+      onAdd({ ...selectedRecipe, ...adjusted, id: Date.now(), estimated: true });
+    } catch { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); }
+    setAdjusting(false);
   };
 
   const confidenceColor = { hoch: C.green, mittel: C.fat, niedrig: C.red };
+  const filteredRecipes = recipes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 2 }}>
-        KI<span style={{ color: C.accent }}>-Scan</span>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
+        Mahlzeit <span style={{ color: C.accent }}>hinzufügen</span>
       </div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>
-        Kombiniere Foto + Text + Sprache für bessere Genauigkeit
+      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Wähle wie du einloggen möchtest</div>
+
+      {/* Mode selector */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        {[["📷", "KI-Scan", "ai"], ["🍽️", "Notion", "notion"], ["✏️", "Manuell", "manual"]].map(([icon, label, key]) => (
+          <button key={key} onClick={() => switchMode(key)} style={{
+            flex: 1, padding: "14px 0", borderRadius: 14,
+            border: `1px solid ${mode === key ? C.accent : C.border}`,
+            background: mode === key ? `${C.accent}15` : C.card,
+            color: mode === key ? C.accent : C.mutedLight,
+            cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600,
+          }}>
+            <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>{label}
+          </button>
+        ))}
       </div>
 
-      {/* ── INPUT BLOCK 1: Foto ── */}
-      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${imageB64 ? C.accent : C.border}`, marginBottom: 12, overflow: "hidden", transition: "border-color .2s" }}>
-        <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 20 }}>📷</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Foto</div>
-              <div style={{ fontSize: 11, color: C.muted }}>Mahlzeit, Verpackung, Menü</div>
+      {/* ── AI MODE ── */}
+      {mode === "ai" && (
+        <div style={{ animation: "fadeIn .2s ease" }}>
+          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${imageB64 ? C.accent : C.border}`, marginBottom: 12, overflow: "hidden" }}>
+            <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>📷</span>
+                <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Foto</div><div style={{ fontSize: 11, color: C.muted }}>Optional</div></div>
+              </div>
+              {imageB64
+                ? <button onClick={() => { setImageB64(null); setImagePreview(null); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12 }}>Entfernen</button>
+                : <button onClick={() => fileRef.current.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}`, color: C.accent, borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+ Foto</button>}
             </div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleImage}/>
+            {imagePreview && <div style={{ padding: "0 14px 14px" }}><img src={imagePreview} alt="food" style={{ width: "100%", borderRadius: 10, maxHeight: 180, objectFit: "cover" }}/></div>}
           </div>
-          {imageB64
-            ? <button onClick={() => { setImageB64(null); setImagePreview(null); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12 }}>Entfernen</button>
-            : <button onClick={() => fileRef.current.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}`, color: C.accent, borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+ Foto</button>
-          }
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleImage}/>
-        {imagePreview && (
-          <div style={{ padding: "0 14px 14px" }}>
-            <img src={imagePreview} alt="food" style={{ width: "100%", borderRadius: 10, maxHeight: 200, objectFit: "cover" }}/>
-          </div>
-        )}
-        {!imagePreview && (
-          <div onClick={() => fileRef.current.click()} style={{
-            margin: "0 14px 14px", border: `1.5px dashed ${C.border}`, borderRadius: 10,
-            padding: "22px 0", textAlign: "center", cursor: "pointer",
-          }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
-            onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-            <div style={{ color: C.muted, fontSize: 13 }}>Tippen zum Hochladen</div>
-          </div>
-        )}
-      </div>
 
-      {/* ── INPUT BLOCK 2: Text + Voice kombiniert ── */}
-      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${text.trim() ? C.accent : C.border}`, marginBottom: 12, transition: "border-color .2s" }}>
-        <div style={{ padding: "14px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 20 }}>✏️</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Beschreibung</div>
-              <div style={{ fontSize: 11, color: C.muted }}>Text eingeben oder Sprache anhängen</div>
+          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${text.trim() ? C.accent : C.border}`, marginBottom: 12 }}>
+            <div style={{ padding: "14px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>✏️</span>
+                <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Beschreibung</div><div style={{ fontSize: 11, color: C.muted }}>Text oder Sprache</div></div>
+              </div>
+              <button onClick={toggleVoice} style={{ width: 36, height: 36, borderRadius: "50%", border: `1.5px solid ${recording ? C.red : voiceAppended ? C.green : C.border}`, background: recording ? `${C.red}20` : C.surface, color: recording ? C.red : C.mutedLight, fontSize: 16, cursor: "pointer", animation: recording ? "pulse 1.2s ease infinite" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>🎙️</button>
+            </div>
+            {recording && <div style={{ margin: "0 14px 10px", background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red, animation: "pulse 1s ease infinite" }}/><span style={{ color: C.red, fontSize: 12 }}>Aufnahme läuft…</span></div>}
+            <div style={{ padding: "0 14px 14px" }}>
+              <textarea value={text} onChange={e => setText(e.target.value)} placeholder={imageB64 ? "Hinweise zum Foto: 'extra groß', 'ca. 400g'…" : "z.B. 'Döner mit Fladenbrot, extra Fleisch'"} rows={3} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", resize: "none", boxSizing: "border-box", lineHeight: 1.6 }}/>
             </div>
           </div>
-          {/* Voice button — appends to text */}
-          <button onClick={toggleVoice} style={{
-            width: 36, height: 36, borderRadius: "50%",
-            border: `1.5px solid ${recording ? C.red : voiceAppended ? C.green : C.border}`,
-            background: recording ? `${C.red}20` : voiceAppended ? `${C.green}20` : C.surface,
-            color: recording ? C.red : voiceAppended ? C.green : C.mutedLight,
-            fontSize: 16, cursor: "pointer",
-            animation: recording ? "pulse 1.2s ease infinite" : "none",
-            transition: "all .2s ease", display: "flex", alignItems: "center", justifyContent: "center",
-          }}>🎙️</button>
-        </div>
-        {recording && (
-          <div style={{ margin: "0 14px 10px", background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.red, animation: "pulse 1s ease infinite" }}/>
-            <span style={{ color: C.red, fontSize: 12 }}>Aufnahme läuft — tippe 🎙️ zum Stoppen</span>
-          </div>
-        )}
-        {voiceAppended && !recording && (
-          <div style={{ margin: "0 14px 10px", background: `${C.green}15`, borderRadius: 8, padding: "6px 12px" }}>
-            <span style={{ color: C.green, fontSize: 12 }}>✓ Sprache zum Text hinzugefügt</span>
-          </div>
-        )}
-        <div style={{ padding: "0 14px 14px" }}>
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder={imageB64
-              ? "z.B. 'extra große Portion', 'ca. 400g', 'mit viel Öl gebraten', 'vegetarisch'…"
-              : "z.B. 'Döner mit Fladenbrot, extra Fleisch' oder '200g Hähnchen mit Reis und Brokkoli'"}
-            rows={3}
-            style={{
-              width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10,
-              padding: 12, color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 14,
-              outline: "none", resize: "none", boxSizing: "border-box", lineHeight: 1.6,
-            }}
-          />
-          {text.trim() && (
-            <button onClick={() => setText("")} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: "4px 0" }}>
-              Text löschen ×
-            </button>
+
+          <button onClick={analyzeAI} disabled={loading || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#000", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
+            {loading ? "KI analysiert…" : "Nährwerte schätzen"}
+          </button>
+
+          {result && (
+            <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, animation: "fadeIn .4s ease" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.text, flex: 1, paddingRight: 10 }}>{result.name}</div>
+                {result.confidence && <span style={{ fontSize: 11, fontFamily: "'DM Mono',monospace", flexShrink: 0, color: confidenceColor[result.confidence] || C.muted, border: `1px solid ${confidenceColor[result.confidence] || C.muted}`, borderRadius: 6, padding: "3px 8px" }}>{result.confidence}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                {[["kcal", result.calories, C.accent], ["Protein", result.protein+"g", C.protein], ["Carbs", result.carbs+"g", C.carbs], ["Fett", result.fat+"g", C.fat]].map(([l,v,col]) => (
+                  <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: col }}>{v}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              {result.note && <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 10 }}>{result.note}</div>}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button style={{ flex: 1, background: C.accent, color: "#000", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true })}>Zum Log →</button>
+                <button style={{ background: C.card, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 12, padding: "13px 16px", cursor: "pointer", fontSize: 13 }} onClick={() => { setResult(null); setText(""); setImageB64(null); setImagePreview(null); }}>Neu</button>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-
-      {/* ── Active inputs indicator ── */}
-      {activeInputs.length > 0 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: C.muted }}>Analysiert wird:</span>
-          {imageB64 && <span style={{ background: `${C.accent}20`, color: C.accent, fontSize: 11, borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>📷 Foto</span>}
-          {text.trim() && <span style={{ background: `${C.carbs}20`, color: C.carbs, fontSize: 11, borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>✏️ Text</span>}
-          {activeInputs.length === 2 && <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>→ Kombination = genauer</span>}
         </div>
       )}
 
-      {/* ── Analyze button ── */}
-      <Btn full accent onClick={analyze} disabled={loading || (!text.trim() && !imageB64)}
-        style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 16 }}>
-        {loading ? "KI analysiert…" : "Nährwerte schätzen"}
-      </Btn>
-
-      {/* ── Result ── */}
-      {result && (
-        <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, animation: "fadeIn .4s ease" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.text, flex: 1, paddingRight: 10 }}>{result.name}</div>
-            {result.confidence && (
-              <span style={{ fontSize: 11, fontFamily: "'DM Mono',monospace", flexShrink: 0,
-                color: confidenceColor[result.confidence] || C.muted,
-                border: `1px solid ${confidenceColor[result.confidence] || C.muted}`,
-                borderRadius: 6, padding: "3px 8px" }}>
-                {result.confidence}
-              </span>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            {[["kcal", result.calories, C.accent], ["Protein", result.protein + "g", C.protein],
-              ["Carbs", result.carbs + "g", C.carbs], ["Fett", result.fat + "g", C.fat]].map(([l, v, col]) => (
-              <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: col }}>{v}</div>
-                <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
+      {/* ── NOTION MODE ── */}
+      {mode === "notion" && (
+        <div style={{ animation: "fadeIn .2s ease" }}>
+          {!selectedRecipe ? (
+            <>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rezept suchen…" autoFocus style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", boxSizing: "border-box", marginBottom: 12 }}/>
+              {loadingRecipes && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: 20 }}>Lade Rezepte aus Notion…</div>}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {filteredRecipes.map(r => (
+                  <div key={r.id} onClick={() => setSelectedRecipe(r)} style={{ background: C.card, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+                    <div>
+                      <div style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>{r.name}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                        {r.calories > 0 ? `${r.calories} kcal · P${r.protein}g · C${r.carbs}g · F${r.fat}g` : "Keine Nährwerte"}
+                        {r.cookingTime > 0 ? ` · ${r.cookingTime} Min` : ""}
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        {r.tags.map(t => <span key={t} style={{ fontSize: 10, background: C.surface, borderRadius: 4, padding: "2px 6px", marginRight: 4, color: C.mutedLight }}>{t}</span>)}
+                      </div>
+                    </div>
+                    {r.rating > 0 && <div style={{ color: C.fat, fontSize: 13, marginLeft: 10 }}>{"★".repeat(r.rating)}</div>}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {result.note && (
-            <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 10 }}>
-              {result.note}
+            </>
+          ) : (
+            <div style={{ animation: "fadeIn .2s ease" }}>
+              <button onClick={() => setSelectedRecipe(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, marginBottom: 14, padding: 0 }}>← Zurück</button>
+              <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}`, marginBottom: 14 }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.text, marginBottom: 12 }}>{selectedRecipe.name}</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  {[["kcal", selectedRecipe.calories, C.accent], ["P", selectedRecipe.protein+"g", C.protein], ["C", selectedRecipe.carbs+"g", C.carbs], ["F", selectedRecipe.fat+"g", C.fat]].map(([l,v,col]) => (
+                    <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
+                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: col }}>{v}</div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                {selectedRecipe.cookingTime > 0 && <div style={{ fontSize: 12, color: C.muted }}>⏱ {selectedRecipe.cookingTime} Min · 💰 {selectedRecipe.costPerServing ? "€" + selectedRecipe.costPerServing : "–"}</div>}
+              </div>
+
+              <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+                <div style={{ padding: "14px 16px 10px" }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 2 }}>Hinweise zur Portion</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>KI passt die Makros automatisch an</div>
+                </div>
+                <div style={{ padding: "0 14px 14px" }}>
+                  <textarea value={recipeNote} onChange={e => setRecipeNote(e.target.value)} placeholder="z.B. 'halbe Portion', 'ohne Käse', 'doppelt Protein', '300g statt 400g'…" rows={3} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", resize: "none", boxSizing: "border-box", lineHeight: 1.6 }}/>
+                </div>
+              </div>
+
+              <button onClick={adjustRecipe} disabled={adjusting} style={{ width: "100%", background: adjusting ? C.border : C.accent, color: adjusting ? C.muted : "#000", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: adjusting ? "not-allowed" : "pointer" }}>
+                {adjusting ? "KI passt an…" : recipeNote.trim() ? "Anpassen & hinzufügen" : "Direkt hinzufügen"}
+              </button>
             </div>
           )}
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn full accent onClick={() => { onAdd({ ...result, id: Date.now(), estimated: true }); reset(); }}>
-              Zum Log →
-            </Btn>
-            <Btn onClick={reset} style={{ flexShrink: 0 }}>Neu</Btn>
+        </div>
+      )}
+
+      {/* ── MANUAL MODE ── */}
+      {mode === "manual" && (
+        <div style={{ animation: "fadeIn .2s ease" }}>
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Name</div>
+              <input value={manual.name} onChange={e => setManual(p => ({...p, name: e.target.value}))} placeholder="Mahlzeit benennen…" style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", boxSizing: "border-box" }}/>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[["Kalorien", "calories", "kcal", C.accent], ["Protein", "protein", "g", C.protein], ["Carbs", "carbs", "g", C.carbs], ["Fett", "fat", "g", C.fat]].map(([label, key, unit, color]) => (
+                <div key={key}>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{label} ({unit})</div>
+                  <input type="number" value={manual[key]} onChange={e => setManual(p => ({...p, [key]: e.target.value}))} placeholder="0" style={{ width: "100%", background: C.surface, border: `1px solid ${color}40`, borderRadius: 8, padding: "10px 12px", color: color, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
+                </div>
+              ))}
+            </div>
           </div>
+          <button onClick={() => { if (!manual.name) return; onAdd({ ...manual, calories: parseFloat(manual.calories)||0, protein: parseFloat(manual.protein)||0, carbs: parseFloat(manual.carbs)||0, fat: parseFloat(manual.fat)||0, id: Date.now() }); }} disabled={!manual.name} style={{ width: "100%", background: manual.name ? C.accent : C.border, color: manual.name ? "#000" : C.muted, border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: manual.name ? "pointer" : "not-allowed" }}>
+            Hinzufügen
+          </button>
         </div>
       )}
     </div>
