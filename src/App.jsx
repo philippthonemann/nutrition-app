@@ -343,7 +343,6 @@ Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,
   };
 
   const adjustRecipe = async () => {
-    console.log("adjustRecipe called, note:", recipeNote, "recipe:", selectedRecipe?.name);
     if (!selectedRecipe) return;
     if (!recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); return; }
     setAdjusting(true);
@@ -354,8 +353,14 @@ Original Nährwerte: ${selectedRecipe.calories} kcal, ${selectedRecipe.protein}g
 Hinweis: ${recipeNote}
 Passe die Nährwerte entsprechend an.`;
     try {
-      const raw = await callClaude(sys, prompt, null);
-      const adjusted = JSON.parse(raw);
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, system: sys, messages: [{ role: 'user', content: prompt }] })
+      });
+      const data = await res.json();
+      const text = data.content?.find(b => b.type === 'text')?.text || '';
+      const adjusted = JSON.parse(text.replace(/```json|```/g, '').trim());
       onAdd({ ...selectedRecipe, ...adjusted, id: Date.now(), estimated: true });
     } catch { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); }
     setAdjusting(false);
