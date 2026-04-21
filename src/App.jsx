@@ -343,6 +343,7 @@ Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,
   };
 
   const adjustRecipe = async () => {
+    console.log("adjustRecipe called, note:", recipeNote, "recipe:", selectedRecipe?.name);
     if (!selectedRecipe) return;
     if (!recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); return; }
     setAdjusting(true);
