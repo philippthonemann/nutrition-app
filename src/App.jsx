@@ -900,11 +900,12 @@ export default function App() {
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
-        {tab === "week" && <WeekTab goals={goals}/>}
+        {tab === "week" && <WeekTab goals={goals}/> }
+        {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
 
       {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", padding: "12px 0 28px", zIndex: 100 }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
         <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto" }}>
         {navItems.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === t.key ? C.accent : C.muted, transition: "color .15s ease" }}>
