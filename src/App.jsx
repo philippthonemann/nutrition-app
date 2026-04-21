@@ -192,12 +192,16 @@ function TodayTab({ logged, setLogged, goals, onOpenScan }) {
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 54, lineHeight: 1, color: C.text }}>
               {totals.calories}<span style={{ fontSize: 18, color: C.muted, marginLeft: 4 }}>/ {goals.calories}</span>
             </div>
-            <div style={{ color: C.accent, fontSize: 13, marginTop: 4 }}>
-              {goals.calories - totals.calories > 0 ? `${goals.calories - totals.calories} kcal verbleibend` : "Ziel erreicht 🎯"}
+            <div style={{ color: totals.calories > goals.calories ? C.red : C.accent, fontSize: 13, marginTop: 4 }}>
+              {totals.calories > goals.calories 
+                ? `+${totals.calories - goals.calories} kcal über Ziel ⚠️`
+                : goals.calories - totals.calories > 0 
+                  ? `${goals.calories - totals.calories} kcal verbleibend` 
+                  : "Ziel erreicht 🎯"}
             </div>
           </div>
           <div style={{ position: "relative" }}>
-            <Ring value={totals.calories} goal={goals.calories} color={C.accent} size={76} sw={7}/>
+            <Ring value={totals.calories} goal={goals.calories} color={totals.calories > goals.calories ? C.red : C.accent} size={76} sw={7}/>
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
               fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: C.text }}>{Math.round(calPct)}%</div>
           </div>
@@ -219,7 +223,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan }) {
               <Ring value={v} goal={g} color={col} size={36} sw={4}/>
             </div>
             <div style={{ height: 3, background: C.border, borderRadius: 2, marginTop: 8 }}>
-              <div style={{ height: "100%", width: `${Math.min((v/g)*100,100)}%`, background: col, borderRadius: 2 }}/>
+              <div style={{ height: "100%", width: `${Math.min((v/g)*100,100)}%`, background: v > g ? C.red : col, borderRadius: 2 }}/>
             </div>
           </div>
         ))}
