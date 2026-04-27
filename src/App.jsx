@@ -1051,85 +1051,130 @@ function MealPlanCard({ meal }) {
 }
 
 // ── PLAN TAB ─────────────────────────────────────────────────────────────────
-function PlanTab({ goals }) {
-  const [filters, setFilters] = useState({ minRating: 0, maxCookTime: 999, maxCost: 999, tags: [] });
-  const [recipes, setRecipes] = useState([]);
-  const [plan, setPlan] = useState(null);
+function MealPlanCard({ meal }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4 }}>
+      <div onClick={() => setExpanded(!expanded)} style={{ cursor: "pointer" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2, letterSpacing: 1 }}>{meal.type?.toUpperCase()}</div>
+            <div style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>
+              {meal.recipe}
+              {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}>✦ Neu</span>}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              {[["P", meal.protein+"g", C.protein], ["C", meal.carbs+"g", C.carbs], ["F", meal.fat+"g", C.fat]].map(([l,v,c]) => (
+                <span key={l} style={{ fontSize: 11, color: c }}>{l}: {v}</span>
+              ))}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", marginLeft: 10 }}>
+            <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{meal.calories} kcal</div>
+            <span style={{ color: C.muted, fontSize: 12 }}>{expanded ? "▲" : "▼"}</span>
+          </div>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 10, animation: "fadeIn .2s ease" }}>
+          {meal.ingredients?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUTATEN</div>
+              {meal.ingredients.map((ing, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.mutedLight, padding: "3px 0", borderBottom: `1px solid ${C.border}` }}>· {ing}</div>
+              ))}
+            </div>
+          )}
+          {meal.steps?.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUBEREITUNG</div>
+              {meal.steps.map((step, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 6, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>{i+1}</span>
+                  <span style={{ fontSize: 12, color: C.mutedLight, lineHeight: 1.5 }}>{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlanTab({ goals, logged }) {
+  const [mode, setMode] = useState(null); // "inspo"|"fillup"
+  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [loadingRecipes, setLoadingRecipes] = useState(true);
-  const [planMode, setPlanMode] = useState("mix"); // "notion"|"inspiration"|"mix"
-  const [weekStart, setWeekStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  const [recipes, setRecipes] = useState([]);
+  const [planDate, setPlanDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate()+1);
     return d.toISOString().split("T")[0];
   });
+  const [tags, setTags] = useState([]);
+  const ALL_TAGS = ["High Protein","Vegan","Vegetarisch","Meal Prep","Schnell","Günstig"];
 
-  const DAYS = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
-  const MEALS = ["Frühstück","Mittagessen","Abendessen","Snack"];
+  useEffect(() => { loadNotionRecipes().then(setRecipes); }, []);
 
-  const ALL_TAGS = ["High Protein","Vegan","Vegetarisch","Meal Prep","Bowl","Curry","Dinner","Lunch","Breakfast","Sides","Quick"];
+  const totals = logged.reduce((a,m) => ({
+    calories: a.calories+(m.calories||0), protein: a.protein+(m.protein||0),
+    carbs: a.carbs+(m.carbs||0), fat: a.fat+(m.fat||0),
+  }), { calories:0, protein:0, carbs:0, fat:0 });
 
-  useEffect(() => {
-    loadNotionRecipes().then(data => { setRecipes(data); setLoadingRecipes(false); });
-  }, []);
+  const remaining = {
+    calories: Math.max(0, goals.calories - totals.calories),
+    protein: Math.max(0, goals.protein - totals.protein),
+    carbs: Math.max(0, goals.carbs - totals.carbs),
+    fat: Math.max(0, goals.fat - totals.fat),
+  };
 
-  const generatePlan = async () => {
-    setLoading(true); setPlan(null);
-    const filtered = recipes.filter(r =>
-      r.rating >= filters.minRating &&
-      (r.cookingTime === 0 || r.cookingTime <= filters.maxCookTime) &&
-      (r.costPerServing === 0 || r.costPerServing <= filters.maxCost) &&
-      (filters.tags.length === 0 || filters.tags.some(t => r.tags.includes(t)))
-    );
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 10 ? "Morgen" : hour < 14 ? "Mittag" : hour < 18 ? "Nachmittag" : "Abend";
 
-    const sys = `Du bist Ernährungsberater. Erstelle einen 7-Tage Mahlzeitenplan.
+  const generate = async (selectedMode) => {
+    setLoading(true); setResult(null); setMode(selectedMode);
+    const sys = `Du bist Ernährungsberater für Philipp. Er lebt in Karlsruhe, mag mediterrane Küche, Hühnchen, Pasta. Er macht Ausdauersport.
 Antworte NUR mit JSON, kein Markdown:
-{"days":[{"day":"Montag","meals":[{"type":"Frühstück","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"fiber":X,"isNew":true,"ingredients":["200g Haferflocken","1 Banane"],"steps":["Schritt 1","Schritt 2"]},...],"totalCalories":X,"totalProtein":X,"totalCarbs":X,"totalFat":X},...]}`;
+{"title":"...","meals":[{"type":"Frühstück/Mittagessen/Abendessen/Snack","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true,"ingredients":["200g X"],"steps":["Schritt 1"]}],"totalCalories":X,"totalProtein":X,"totalCarbs":X,"totalFat":X,"tip":"kurzer Ernährungstipp"}`;
 
-    const notionPart = filtered.length > 0 && planMode !== "inspiration"
-      ? `Vorhandene Rezepte (bevorzuge höher bewertete, markiere isNew:false): ${JSON.stringify(filtered.slice(0,20).map(r=>({name:r.name,cal:r.calories,p:r.protein,c:r.carbs,f:r.fat,rating:r.rating,tags:r.tags})))}`
-      : "";
+    let prompt = "";
 
-    const inspirationPart = planMode !== "notion"
-      ? `Erfinde auch neue kreative Gerichte (markiere isNew:true) basierend auf Philipps Vorlieben: mediterrane Küche, Hühnchen, Pasta, gesund aber sättigend, günstig. Neue Gerichte sollen realistisch kochbar sein.`
-      : "";
-
-    const mixNote = planMode === "mix"
-      ? "Mische vorhandene Rezepte und neue Ideen ausgewogen (ca. 50/50)."
-      : planMode === "inspiration"
-      ? "Erstelle ausschließlich neue, kreative Gerichte — keine vorhandenen Rezepte verwenden."
-      : "Verwende ausschließlich die vorhandenen Rezepte.";
-
-    const prompt = `Meine Ziele: ${goals.calories} kcal, ${goals.protein}g Protein, ${goals.carbs}g Carbs, ${goals.fat}g Fett.
-${notionPart}
-${inspirationPart}
-${mixNote}
-Erstelle einen 3-Tage Plan (Montag bis Mittwoch). Maximal 2-3 Zutaten pro Gericht, maximal 2 Kochschritte. Makros täglich nah am Ziel. Halte die Antwort kurz und präzise.`;
+    if (selectedMode === "inspo") {
+      const notionRecipes = recipes.filter(r => tags.length===0 || tags.some(t=>r.tags.includes(t))).slice(0,15);
+      prompt = `Plane einen kompletten Tag für ${planDate} mit 3 Mahlzeiten (Frühstück, Mittagessen, Abendessen).
+Tagesziele: ${goals.calories} kcal, ${goals.protein}g Protein, ${goals.carbs}g Carbs, ${goals.fat}g Fett.
+${notionRecipes.length > 0 ? `Vorhandene Rezepte (bevorzuge bewertete): ${JSON.stringify(notionRecipes.map(r=>({name:r.name,cal:r.calories,p:r.protein,rating:r.rating,tags:r.tags})))}` : ""}
+Erfinde auch neue kreative Ideen. Maximal 4 Zutaten pro Gericht, 2-3 Kochschritte. Zutaten mit Mengenangaben.`;
+    } else {
+      const loggedMeals = logged.map(m=>m.name).join(", ");
+      prompt = `Es ist ${timeOfDay} (${hour} Uhr). Philipp hat heute schon gegessen: ${loggedMeals || "noch nichts"}.
+Bereits konsumiert: ${totals.calories} kcal, ${totals.protein}g Protein, ${totals.carbs}g Carbs, ${totals.fat}g Fett.
+Noch offen: ${remaining.calories} kcal, ${remaining.protein}g Protein, ${remaining.carbs}g Carbs, ${remaining.fat}g Fett.
+${notionRecipesForFillup(recipes, tags)}
+Schlage ${remaining.calories > 800 ? "2-3 Mahlzeiten" : "1-2 Mahlzeiten oder Snacks"} vor die die Lücken sinnvoll füllen.
+Achte auf Ausgewogenheit — falls heute wenig Gemüse gegessen wurde, ergänze es. Falls Protein fehlt, priorisiere das.
+Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlzeit/Snack" : "normale Mahlzeiten"}.`;
+    }
 
     try {
       const raw = await callClaude(sys, prompt);
-      setPlan(JSON.parse(raw));
-    } catch(e) { console.error(e); alert("Fehler beim Generieren — bitte nochmal versuchen"); }
+      setResult(JSON.parse(raw));
+    } catch(e) { console.error(e); alert("Fehler — bitte nochmal versuchen"); }
     setLoading(false);
   };
 
-  const addPlanToLog = async () => {
-    if (!plan) return;
-    const weekStartDate = new Date(weekStart + "T00:00:00");
-    for (let dayIdx = 0; dayIdx < plan.days.length; dayIdx++) {
-      const day = plan.days[dayIdx];
-      const date = new Date(weekStartDate);
-      date.setDate(date.getDate() + dayIdx);
-      const dateStr = date.toISOString().split("T")[0];
-      for (const meal of day.meals) {
-        await saveMeal({ name: `${meal.recipe} (${meal.type})`, calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, date: dateStr });
-      }
-    }
-    alert("Plan wurde ins Log übernommen! ✅");
+  const notionRecipesForFillup = (recipes, tags) => {
+    const filtered = recipes.filter(r => tags.length===0 || tags.some(t=>r.tags.includes(t))).slice(0,10);
+    return filtered.length > 0 ? `Verfügbare Rezepte: ${JSON.stringify(filtered.map(r=>({name:r.name,cal:r.calories,p:r.protein})))}` : "";
   };
 
-  const toggleTag = (tag) => {
-    setFilters(p => ({ ...p, tags: p.tags.includes(tag) ? p.tags.filter(t=>t!==tag) : [...p.tags, tag] }));
+  const addToLog = async () => {
+    if (!result) return;
+    const date = mode === "inspo" ? planDate : today();
+    for (const meal of result.meals) {
+      await saveMeal({ name: meal.recipe, calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, date });
+    }
+    alert(`${result.meals.length} Mahlzeiten ins Log für ${date} übernommen ✅`);
   };
 
   return (
@@ -1137,123 +1182,120 @@ Erstelle einen 3-Tage Plan (Montag bis Mittwoch). Maximal 2-3 Zutaten pro Gerich
       <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
         Meal<span style={{ color: C.accent }}>-Plan</span>
       </div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>KI erstellt deinen Wochenplan aus deinen Notion-Rezepten</div>
+      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Was soll ich essen?</div>
 
-      {/* Mode selector */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        {[["notion", "📚 Meine Rezepte"], ["mix", "✨ Mix"], ["inspiration", "💡 Neue Ideen"]].map(([key, label]) => (
-          <button key={key} onClick={() => setPlanMode(key)} style={{
-            flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 12,
-            border: `1px solid ${planMode===key ? C.accent : C.border}`,
-            background: planMode===key ? `${C.accent}15` : C.card,
-            color: planMode===key ? C.accent : C.muted,
-            cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600,
-          }}>{label}</button>
+      {/* Mode cards */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        {[
+          ["inspo", "🌟", "Inspo", "Plane einen vollen Tag — ideal zum Einkaufen"],
+          ["fillup", "⚡", "Fill Up", "Fülle deine heutigen Makros sinnvoll auf"],
+        ].map(([key, icon, label, sub]) => (
+          <div key={key} onClick={() => { setResult(null); setMode(key); }} style={{
+            flex: 1, background: mode===key ? `${C.accent}15` : C.card,
+            border: `1px solid ${mode===key ? C.accent : C.border}`,
+            borderRadius: 16, padding: 16, cursor: "pointer", transition: "all .15s ease",
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: mode===key ? C.accent : C.text, letterSpacing: 1 }}>{label}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{sub}</div>
+          </div>
         ))}
       </div>
-      {planMode === "inspiration" && (
-        <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: C.accent }}>
-          ✦ KI erfindet neue Gerichte basierend auf deinen Vorlieben: mediterran, Hühnchen, Pasta, gesund & günstig
+
+      {/* Fill Up: show today's remaining */}
+      {mode === "fillup" && (
+        <div style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, animation: "fadeIn .2s ease" }}>
+          <div style={{ fontSize: 12, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 10 }}>HEUTE NOCH OFFEN</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            {[["kcal", remaining.calories, C.accent], ["Protein", remaining.protein+"g", C.protein], ["Carbs", remaining.carbs+"g", C.carbs], ["Fett", remaining.fat+"g", C.fat]].map(([l,v,c]) => (
+              <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: c }}>{v}</div>
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>⏰ Es ist gerade {timeOfDay} ({hour} Uhr)</div>
         </div>
       )}
 
-      {/* Filters */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 14 }}>Filter</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-          {[
-            ["Min. ⭐", "minRating", 0, 5, 1, ""],
-            ["Max. ⏱", "maxCookTime", 0, 120, 15, " Min"],
-            ["Max. 💰", "maxCost", 0, 20, 1, "€"],
-          ].map(([label, key, min, max, step, unit]) => (
-            <div key={key}>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{label}</div>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.accent, textAlign: "center", marginBottom: 4 }}>
-                {filters[key] === (key==="maxCookTime"?999:key==="maxCost"?999:0) ? "Alle" : filters[key]+unit}
-              </div>
-              <input type="range" min={min} max={max} step={step} value={filters[key]===999?max:filters[key]}
-                onChange={e => setFilters(p=>({...p,[key]:key==="minRating"?parseInt(e.target.value):parseInt(e.target.value)===max?999:parseInt(e.target.value)}))}
-                style={{ width: "100%", accentColor: C.accent }}/>
-            </div>
-          ))}
+      {/* Inspo: date picker */}
+      {mode === "inspo" && (
+        <div style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeIn .2s ease" }}>
+          <div style={{ fontSize: 13, color: C.mutedLight }}>Planen für</div>
+          <input type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
         </div>
+      )}
 
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>TAGS</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {ALL_TAGS.map(tag => (
-            <button key={tag} onClick={() => toggleTag(tag)} style={{
-              padding: "5px 12px", borderRadius: 20, fontSize: 12,
-              border: `1px solid ${filters.tags.includes(tag) ? C.accent : C.border}`,
-              background: filters.tags.includes(tag) ? `${C.accent}20` : "none",
-              color: filters.tags.includes(tag) ? C.accent : C.muted,
-              cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
-            }}>{tag}</button>
-          ))}
+      {/* Tags */}
+      {mode && (
+        <div style={{ marginBottom: 14, animation: "fadeIn .2s ease" }}>
+          <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 8 }}>FILTER (OPTIONAL)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ALL_TAGS.map(tag => (
+              <button key={tag} onClick={() => setTags(p => p.includes(tag) ? p.filter(t=>t!==tag) : [...p,tag])} style={{
+                padding: "5px 12px", borderRadius: 20, fontSize: 12,
+                border: `1px solid ${tags.includes(tag) ? C.accent : C.border}`,
+                background: tags.includes(tag) ? `${C.accent}20` : "none",
+                color: tags.includes(tag) ? C.accent : C.muted,
+                cursor: "pointer",
+              }}>{tag}</button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* Week selector */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: 13, color: C.mutedLight }}>Woche ab</div>
-        <input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
-      </div>
+      )}
 
       {/* Generate button */}
-      <button onClick={generatePlan} disabled={loading || loadingRecipes} style={{
-        width: "100%", background: loading||loadingRecipes ? C.border : C.accent,
-        color: loading||loadingRecipes ? C.muted : "#000", border: "none", borderRadius: 12,
-        padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2,
-        cursor: loading||loadingRecipes ? "not-allowed" : "pointer", marginBottom: 16,
-      }}>
-        {loadingRecipes ? "Lade Rezepte…" : loading ? "KI plant…" : "3-Tage Plan generieren ✦"}
-      </button>
+      {mode && (
+        <button onClick={() => generate(mode)} disabled={loading} style={{
+          width: "100%", background: loading ? C.border : C.accent,
+          color: loading ? C.muted : "#000", border: "none", borderRadius: 12,
+          padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20,
+          letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16,
+        }}>
+          {loading ? "KI denkt…" : mode === "inspo" ? "Tag planen ✦" : "Auffüllen ⚡"}
+        </button>
+      )}
 
-      {/* Plan display */}
-      {plan && (
+      {/* Result */}
+      {result && (
         <div style={{ animation: "fadeIn .4s ease" }}>
-          {plan.days?.map((day, i) => (
-            <div key={i} style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: C.text, letterSpacing: 1 }}>{day.day}</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: C.accent }}>{day.totalCalories} kcal</span>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: C.protein }}>{day.totalProtein}g P</span>
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}40`, marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.accent, marginBottom: 4 }}>{result.title}</div>
+            {result.meals?.map((meal, i) => <MealPlanCard key={i} meal={meal}/>)}
+            
+            {/* Totals */}
+            <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+              {[["kcal", result.totalCalories, C.accent], ["P", result.totalProtein+"g", C.protein], ["C", result.totalCarbs+"g", C.carbs], ["F", result.totalFat+"g", C.fat]].map(([l,v,c]) => (
+                <div key={l} style={{ flex: 1, textAlign: "center", background: C.surface, borderRadius: 8, padding: "8px 0" }}>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: c }}>{v}</div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{l}</div>
                 </div>
-              </div>
-              {day.meals?.map((meal, j) => (
-                <MealPlanCard key={j} meal={meal} goals={goals}/>
               ))}
-              {/* Day totals */}
-              <div style={{ display: "flex", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-                {[["kcal", day.totalCalories, goals.calories, C.accent], ["P", day.totalProtein+"g", goals.protein, C.protein], ["C", day.totalCarbs+"g", goals.carbs, C.carbs], ["F", day.totalFat+"g", goals.fat, C.fat]].map(([l,v,g,c]) => (
-                  <div key={l} style={{ flex: 1, textAlign: "center", background: C.surface, borderRadius: 8, padding: "6px 0" }}>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: c }}>{v}</div>
-                    <div style={{ fontSize: 9, color: C.muted }}>{l}</div>
-                  </div>
-                ))}
-              </div>
             </div>
-          ))}
 
-          <button onClick={addPlanToLog} style={{
+            {result.tip && (
+              <div style={{ marginTop: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 12, color: C.muted, fontSize: 12, lineHeight: 1.5 }}>
+                💡 {result.tip}
+              </div>
+            )}
+          </div>
+
+          <button onClick={addToLog} style={{
             width: "100%", background: C.green, color: "#000", border: "none", borderRadius: 12,
-            padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2,
-            cursor: "pointer", marginBottom: 16,
-          }}>
-            Plan ins Log übernehmen (3 Tage) →
-          </button>
+            padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2,
+            cursor: "pointer", marginBottom: 10,
+          }}>Ins Log übernehmen →</button>
 
-          <button onClick={() => setPlan(null)} style={{
-            width: "100%", background: "none", border: `1px solid ${C.border}`,
-            color: C.muted, borderRadius: 12, padding: "11px 0",
-            fontFamily: "'DM Sans',sans-serif", fontSize: 14, cursor: "pointer",
+          <button onClick={() => { setResult(null); }} style={{
+            width: "100%", background: "none", border: `1px solid ${C.border}`, color: C.muted,
+            borderRadius: 12, padding: "11px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, cursor: "pointer",
           }}>Neu generieren</button>
         </div>
       )}
     </div>
   );
 }
+
 
 // ── GOALS TAB ─────────────────────────────────────────────────────────────────
 function GoalsTab({ goals, setGoals }) {
