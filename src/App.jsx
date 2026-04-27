@@ -842,6 +842,10 @@ function AnalyticsTab({ goals }) {
   const [weekData, setWeekData] = useState([]);
   const [bodyHistory, setBodyHistory] = useState([]);
   const [activeChart, setActiveChart] = useState("weight");
+  const [showMeasurementForm, setShowMeasurementForm] = useState(false);
+  const [measurementForm, setMeasurementForm] = useState({ weight:"", waist:"", chest:"", hip:"" });
+  const [bodyAnalysis, setBodyAnalysis] = useState(null);
+  const [bodyAnalyzing, setBodyAnalyzing] = useState(false);
 
   useEffect(() => {
     Promise.all([loadMonthMeals(viewYear, viewMonth), loadWeekMeals(), loadBodyMeasurements()]).then(([month, week, body]) => {
@@ -1073,10 +1077,122 @@ function AnalyticsTab({ goals }) {
             ))}
           </div>
 
+          {/* Add measurement form */}
+          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14, overflow: "hidden" }}>
+            <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>Neue Messung</div>
+              <button onClick={() => setShowMeasurementForm(!showMeasurementForm)} style={{
+                background: C.accent, color: "#000", border: "none", borderRadius: 8,
+                width: 28, height: 28, fontSize: 20, cursor: "pointer", fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{showMeasurementForm ? "−" : "+"}</button>
+            </div>
+            {showMeasurementForm && (
+              <div style={{ padding: "0 20px 20px", animation: "fadeIn .2s ease" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  {bodyMetrics.map(m => (
+                    <div key={m.key}>
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{m.label} ({m.unit})</div>
+                      <input type="number" step="0.1" value={measurementForm[m.key]}
+                        onChange={e => setMeasurementForm(p => ({...p, [m.key]: e.target.value}))}
+                        placeholder={latest?.[m.key] || "0"}
+                        style={{ width: "100%", background: C.surface, border: `1px solid ${m.color}40`, borderRadius: 8, padding: "10px 12px", color: m.color, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={async () => {
+                  const entry = { date: new Date().toISOString().split("T")[0], ...Object.fromEntries(Object.entries(measurementForm).map(([k,v])=>[k,parseFloat(v)||0])) };
+                  const saved = await saveBodyMeasurement(entry);
+                  if (saved) setBodyHistory(p => [...p, saved]);
+                  setMeasurementForm({ weight:"", waist:"", chest:"", hip:"" });
+                  setShowMeasurementForm(false);
+                }} style={{ width: "100%", background: C.accent, color: "#000", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, cursor: "pointer" }}>
+                  Speichern
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* History table */}
+          {bodyHistory.length > 0 && (
+            <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr>{["Datum","Gewicht","Bauch","Brust","Hüfte"].map(h => (
+                      <th key={h} style={{ color: C.muted, fontFamily: "'DM Mono',monospace", fontSize: 10, textAlign: "left", padding: "4px 8px 10px 0", fontWeight: 400, textTransform: "uppercase", letterSpacing: 1 }}>{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {[...bodyHistory].reverse().slice(0,8).map((e, i) => (
+                      <tr key={e.date} style={{ opacity: i===0?1:0.7 }}>
+                        <td style={{ padding: "8px 8px 8px 0", color: i===0?C.accent:C.mutedLight, fontSize: 12 }}>{e.date.slice(5)}</td>
+                        {["weight","waist","chest","hip"].map(k => (
+                          <td key={k} style={{ padding: "8px 8px 8px 0", color: C.text }}>{e[k]||"–"}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* KI Analysis */}
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>KI-Analyse</div>
+              <div style={{ background: C.accent, color: "#000", fontSize: 10, fontFamily: "'DM Mono',monospace", padding: "3px 8px", borderRadius: 20, fontWeight: 700 }}>AI</div>
+            </div>
+            {bodyAnalysis ? (
+              <div style={{ animation: "fadeIn .4s ease" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: {positiv:C.green,neutral:C.fat,negativ:C.red}[bodyAnalysis.trend]||C.muted }}/>
+                  <span style={{ color: {positiv:C.green,neutral:C.fat,negativ:C.red}[bodyAnalysis.trend], fontSize: 13, fontWeight: 600, textTransform: "capitalize" }}>{bodyAnalysis.trend}</span>
+                </div>
+                <div style={{ color: C.mutedLight, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>{bodyAnalysis.summary}</div>
+                {bodyAnalysis.recommendations?.map((r,i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+                    <span style={{ color: C.accent, fontSize: 16, lineHeight: 1 }}>→</span>
+                    <span style={{ color: C.text, fontSize: 13 }}>{r}</span>
+                  </div>
+                ))}
+                {bodyAnalysis.calorieAdjustment && (
+                  <div style={{ marginTop: 14, background: C.surface, borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 4 }}>KALORIEN-EMPFEHLUNG</div>
+                    <div style={{ color: bodyAnalysis.calorieAdjustment==="erhöhen"?C.green:bodyAnalysis.calorieAdjustment==="reduzieren"?C.red:C.fat, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>
+                      {bodyAnalysis.calorieAdjustment.toUpperCase()}
+                    </div>
+                    <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{bodyAnalysis.calorieReason}</div>
+                  </div>
+                )}
+                <button onClick={() => setBodyAnalysis(null)} style={{ marginTop: 14, background: "none", border: `1px solid ${C.border}`, color: C.mutedLight, width: "100%", padding: "8px 0", borderRadius: 8, cursor: "pointer", fontSize: 12 }}>
+                  Neu analysieren →
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ color: C.muted, fontSize: 13, marginBottom: 14, lineHeight: 1.5 }}>Analysiere deinen Fortschritt — erhalte personalisierte Empfehlungen.</div>
+                <button onClick={async () => {
+                  setBodyAnalyzing(true);
+                  const sys = `Du bist Personal Trainer und Ernährungsberater. Analysiere die Körperdaten und gib konkrete Empfehlungen.
+Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze","recommendations":["Tipp 1","Tipp 2","Tipp 3"],"calorieAdjustment":"erhöhen|beibehalten|reduzieren","calorieReason":"kurze Begründung"}`;
+                  try {
+                    const raw = await callClaude(sys, "Körperdaten: " + JSON.stringify(bodyHistory.slice(-6)) + " Aktuelles Kalorienziel: " + goals.calories);
+                    setBodyAnalysis(JSON.parse(raw));
+                  } catch(e) { console.error(e); }
+                  setBodyAnalyzing(false);
+                }} disabled={bodyAnalyzing || bodyHistory.length < 2} style={{ width: "100%", background: bodyAnalyzing||bodyHistory.length<2?C.border:C.accent, color: bodyAnalyzing||bodyHistory.length<2?C.muted:"#000", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, cursor: bodyAnalyzing||bodyHistory.length<2?"not-allowed":"pointer" }}>
+                  {bodyAnalyzing ? "Analysiere…" : bodyHistory.length < 2 ? "Mindestens 2 Messungen nötig" : "Analyse starten"}
+                </button>
+              </div>
+            )}
+          </div>
+
           {!latest && (
             <div style={{ background: C.card, borderRadius: 16, padding: 30, border: `1px solid ${C.border}`, textAlign: "center" }}>
               <div style={{ color: C.muted, fontSize: 14 }}>Noch keine Körpermessungen</div>
-              <div style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>Füge Messungen im Körper-Tab hinzu</div>
             </div>
           )}
         </div>
@@ -1085,6 +1201,176 @@ function AnalyticsTab({ goals }) {
   );
 }
 
+
+// ── PLAN TAB ─────────────────────────────────────────────────────────────────
+function PlanTab({ goals }) {
+  const [filters, setFilters] = useState({ minRating: 0, maxCookTime: 999, maxCost: 999, tags: [] });
+  const [recipes, setRecipes] = useState([]);
+  const [plan, setPlan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingRecipes, setLoadingRecipes] = useState(true);
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    return d.toISOString().split("T")[0];
+  });
+
+  const DAYS = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
+  const MEALS = ["Frühstück","Mittagessen","Abendessen","Snack"];
+
+  const ALL_TAGS = ["High Protein","Vegan","Vegetarisch","Meal Prep","Bowl","Curry","Dinner","Lunch","Breakfast","Sides","Quick"];
+
+  useEffect(() => {
+    loadNotionRecipes().then(data => { setRecipes(data); setLoadingRecipes(false); });
+  }, []);
+
+  const generatePlan = async () => {
+    setLoading(true); setPlan(null);
+    const filtered = recipes.filter(r =>
+      r.rating >= filters.minRating &&
+      (r.cookingTime === 0 || r.cookingTime <= filters.maxCookTime) &&
+      (r.costPerServing === 0 || r.costPerServing <= filters.maxCost) &&
+      (filters.tags.length === 0 || filters.tags.some(t => r.tags.includes(t)))
+    );
+
+    const sys = `Du bist Ernährungsberater. Erstelle einen 7-Tage Mahlzeitenplan.
+Antworte NUR mit JSON:
+{"days":[{"day":"Montag","meals":[{"type":"Frühstück","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X},{"type":"Mittagessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X},{"type":"Abendessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X}],"totalCalories":X,"totalProtein":X},...]}`;
+
+    const prompt = `Meine Ziele: ${goals.calories} kcal, ${goals.protein}g Protein, ${goals.carbs}g Carbs, ${goals.fat}g Fett.
+Verfügbare Rezepte (bevorzuge höher bewertete): ${JSON.stringify(filtered.slice(0,20).map(r=>({name:r.name,cal:r.calories,p:r.protein,c:r.carbs,f:r.fat,rating:r.rating,tags:r.tags})))}
+Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Rezept mehr als 2x. Makros sollen täglich nah am Ziel sein.`;
+
+    try {
+      const raw = await callClaude(sys, prompt);
+      setPlan(JSON.parse(raw));
+    } catch(e) { console.error(e); alert("Fehler beim Generieren — bitte nochmal versuchen"); }
+    setLoading(false);
+  };
+
+  const addPlanToLog = async () => {
+    if (!plan) return;
+    const weekStartDate = new Date(weekStart + "T00:00:00");
+    for (let dayIdx = 0; dayIdx < plan.days.length; dayIdx++) {
+      const day = plan.days[dayIdx];
+      const date = new Date(weekStartDate);
+      date.setDate(date.getDate() + dayIdx);
+      const dateStr = date.toISOString().split("T")[0];
+      for (const meal of day.meals) {
+        await saveMeal({ name: `${meal.recipe} (${meal.type})`, calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, date: dateStr });
+      }
+    }
+    alert("Plan wurde ins Log übernommen! ✅");
+  };
+
+  const toggleTag = (tag) => {
+    setFilters(p => ({ ...p, tags: p.tags.includes(tag) ? p.tags.filter(t=>t!==tag) : [...p.tags, tag] }));
+  };
+
+  return (
+    <div style={{ animation: "fadeIn .3s ease" }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
+        Meal<span style={{ color: C.accent }}>-Plan</span>
+      </div>
+      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>KI erstellt deinen Wochenplan aus deinen Notion-Rezepten</div>
+
+      {/* Filters */}
+      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 14 }}>Filter</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+          {[
+            ["Min. ⭐", "minRating", 0, 5, 1, ""],
+            ["Max. ⏱", "maxCookTime", 0, 120, 15, " Min"],
+            ["Max. 💰", "maxCost", 0, 20, 1, "€"],
+          ].map(([label, key, min, max, step, unit]) => (
+            <div key={key}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{label}</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.accent, textAlign: "center", marginBottom: 4 }}>
+                {filters[key] === (key==="maxCookTime"?999:key==="maxCost"?999:0) ? "Alle" : filters[key]+unit}
+              </div>
+              <input type="range" min={min} max={max} step={step} value={filters[key]===999?max:filters[key]}
+                onChange={e => setFilters(p=>({...p,[key]:key==="minRating"?parseInt(e.target.value):parseInt(e.target.value)===max?999:parseInt(e.target.value)}))}
+                style={{ width: "100%", accentColor: C.accent }}/>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>TAGS</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {ALL_TAGS.map(tag => (
+            <button key={tag} onClick={() => toggleTag(tag)} style={{
+              padding: "5px 12px", borderRadius: 20, fontSize: 12,
+              border: `1px solid ${filters.tags.includes(tag) ? C.accent : C.border}`,
+              background: filters.tags.includes(tag) ? `${C.accent}20` : "none",
+              color: filters.tags.includes(tag) ? C.accent : C.muted,
+              cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
+            }}>{tag}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Week selector */}
+      <div style={{ background: C.card, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 13, color: C.mutedLight }}>Woche ab</div>
+        <input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
+      </div>
+
+      {/* Generate button */}
+      <button onClick={generatePlan} disabled={loading || loadingRecipes} style={{
+        width: "100%", background: loading||loadingRecipes ? C.border : C.accent,
+        color: loading||loadingRecipes ? C.muted : "#000", border: "none", borderRadius: 12,
+        padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2,
+        cursor: loading||loadingRecipes ? "not-allowed" : "pointer", marginBottom: 16,
+      }}>
+        {loadingRecipes ? "Lade Rezepte…" : loading ? "KI plant…" : "Wochenplan generieren ✦"}
+      </button>
+
+      {/* Plan display */}
+      {plan && (
+        <div style={{ animation: "fadeIn .4s ease" }}>
+          {plan.days?.map((day, i) => (
+            <div key={i} style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: C.text, letterSpacing: 1 }}>{day.day}</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: C.accent }}>{day.totalCalories} kcal</span>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: C.protein }}>{day.totalProtein}g P</span>
+                </div>
+              </div>
+              {day.meals?.map((meal, j) => (
+                <div key={j} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2 }}>{meal.type}</div>
+                    <div style={{ fontSize: 13, color: C.text }}>{meal.recipe}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16 }}>{meal.calories}</div>
+                    <div style={{ fontSize: 10, color: C.muted }}>P{meal.protein}g</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          <button onClick={addPlanToLog} style={{
+            width: "100%", background: C.green, color: "#000", border: "none", borderRadius: 12,
+            padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2,
+            cursor: "pointer", marginBottom: 16,
+          }}>
+            Plan ins Log übernehmen →
+          </button>
+
+          <button onClick={() => setPlan(null)} style={{
+            width: "100%", background: "none", border: `1px solid ${C.border}`,
+            color: C.muted, borderRadius: 12, padding: "11px 0",
+            fontFamily: "'DM Sans',sans-serif", fontSize: 14, cursor: "pointer",
+          }}>Neu generieren</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── GOALS TAB ─────────────────────────────────────────────────────────────────
 function GoalsTab({ goals, setGoals }) {
@@ -1233,7 +1519,7 @@ export default function App() {
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
-        {tab === "body" && <BodyTab/>}
+        {tab === "plan" && <PlanTab goals={goals} recipes={[]}/>}
         {tab === "week" && <AnalyticsTab goals={goals}/>}
         {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
