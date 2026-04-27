@@ -338,7 +338,7 @@ Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,
     try {
       const raw = await callClaude(sys, text.trim() || "Schätze die Nährwerte.", imageB64);
       setResult(JSON.parse(raw));
-    } catch { setResult({ name: "Fehler", calories: 0, protein: 0, carbs: 0, fat: 0, note: "Analyse fehlgeschlagen" }); }
+    } catch(e) { console.error("Scan error:", e); setResult({ name: "Fehler", calories: 0, protein: 0, carbs: 0, fat: 0, note: e.message || "Analyse fehlgeschlagen" }); }
     setLoading(false);
   };
 
