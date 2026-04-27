@@ -580,213 +580,6 @@ Passe die Nährwerte entsprechend an.`;
 }
 
 // ── BODY TAB ──────────────────────────────────────────────────────────────────
-function BodyTab() {
-  const [history, setHistory] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
-
-  useEffect(() => {
-    loadBodyMeasurements().then(data => {
-      setHistory(data);
-      setLoadingData(false);
-    });
-  }, []);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ weight: "", waist: "", chest: "", hip: "" });
-  const [analysis, setAnalysis] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [activeMetric, setActiveMetric] = useState("weight");
-
-  const latest = history[history.length - 1];
-  const prev = history[history.length - 2];
-  const delta = (key) => latest && prev ? (latest[key] - prev[key]).toFixed(1) : null;
-
-  const addEntry = async () => {
-    const entry = { date: new Date().toISOString().split("T")[0], ...Object.fromEntries(Object.entries(form).map(([k, v]) => [k, parseFloat(v) || 0])) };
-    const saved = await saveBodyMeasurement(entry);
-    if (saved) setHistory(p => [...p, saved]);
-    setForm({ weight: "", waist: "", chest: "", hip: "" });
-    setShowForm(false);
-  };
-
-  const getAnalysis = async () => {
-    setAnalyzing(true); setAnalysis(null);
-    const sys = `Du bist Personal Trainer und Ernährungsberater. Analysiere die Körperdaten und gib konkrete Empfehlungen.
-Antworte NUR mit JSON:
-{"trend":"positiv|neutral|negativ", "summary":"2-3 Sätze Gesamtbewertung", "recommendations":["Tipp 1","Tipp 2","Tipp 3"], "calorieAdjustment":"erhöhen|beibehalten|reduzieren", "calorieReason":"kurze Begründung"}`;
-    try {
-      const raw = await callClaude(sys,
-        `Körperdaten der letzten Monate: ${JSON.stringify(history)}
-Aktuelle Tageskalorien: 2400 kcal, Protein-Ziel: 160g.
-Analysiere Trend und gib Empfehlungen.`);
-      setAnalysis(JSON.parse(raw));
-    } catch { setAnalysis({ trend: "neutral", summary: "Analyse nicht verfügbar.", recommendations: [], calorieAdjustment: "beibehalten" }); }
-    setAnalyzing(false);
-  };
-
-  const metrics = [
-    { key: "weight", label: "Gewicht", unit: "kg", color: C.accent },
-    { key: "waist", label: "Bauch", unit: "cm", color: C.protein },
-    { key: "chest", label: "Brust", unit: "cm", color: C.carbs },
-    { key: "hip", label: "Hüfte", unit: "cm", color: C.fat },
-  ];
-
-  // mini sparkline
-  const SparkLine = ({ metricKey, color }) => {
-    const vals = history.map(h => h[metricKey]).filter(Boolean);
-    if (vals.length < 2) return null;
-    const min = Math.min(...vals), max = Math.max(...vals), range = max - min || 1;
-    const W = 120, H = 36;
-    const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * W},${H - ((v - min) / range) * (H - 4) - 2}`).join(" ");
-    return (
-      <svg width={W} height={H}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-        {vals.map((v, i) => (
-          <circle key={i} cx={(i / (vals.length - 1)) * W} cy={H - ((v - min) / range) * (H - 4) - 2}
-            r={i === vals.length - 1 ? 4 : 2} fill={i === vals.length - 1 ? color : "none"} stroke={color} strokeWidth={1.5}/>
-        ))}
-      </svg>
-    );
-  };
-
-  const trendColor = { positiv: C.green, neutral: C.fat, negativ: C.red };
-
-  return (
-    <div style={{ animation: "fadeIn .3s ease" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1 }}>
-            Körper<span style={{ color: C.accent }}>-Tracking</span>
-          </div>
-          <div style={{ color: C.muted, fontSize: 12 }}>{history.length} Messungen</div>
-        </div>
-        <Btn small onClick={() => setShowForm(!showForm)}>+ Messung</Btn>
-      </div>
-
-      {/* Stat cards */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        {metrics.map(m => {
-          const d = delta(m.key);
-          const isDown = parseFloat(d) < 0;
-          const isGoodDown = m.key === "weight" || m.key === "waist" || m.key === "hip";
-          const positive = (isGoodDown && isDown) || (!isGoodDown && !isDown);
-          return (
-            <div key={m.key} onClick={() => setActiveMetric(m.key)} style={{
-              flex: "1 1 calc(50% - 5px)", background: activeMetric === m.key ? `${m.color}12` : C.card,
-              borderRadius: 14, padding: "14px 14px 10px", border: `1px solid ${activeMetric === m.key ? m.color : C.border}`,
-              cursor: "pointer", transition: "all .15s ease",
-            }}>
-              <Label>{m.label}</Label>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: C.text }}>
-                {latest?.[m.key]}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                {d !== null && (
-                  <span style={{ fontSize: 12, color: positive ? C.green : C.red }}>
-                    {parseFloat(d) > 0 ? "+" : ""}{d}{m.unit}
-                  </span>
-                )}
-                <SparkLine metricKey={m.key} color={m.color}/>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Add form */}
-      {showForm && (
-        <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14, animation: "fadeIn .2s ease" }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 14 }}>Neue Messung</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-            {metrics.map(m => (
-              <div key={m.key}>
-                <Label>{m.label} ({m.unit})</Label>
-                <input type="number" step="0.1" value={form[m.key]} onChange={e => setForm(p => ({ ...p, [m.key]: e.target.value }))}
-                  placeholder={`${latest?.[m.key] || "—"}`} style={{
-                    width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
-                    padding: "10px 12px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 14,
-                    outline: "none", boxSizing: "border-box",
-                  }}/>
-              </div>
-            ))}
-          </div>
-          <Btn full accent onClick={addEntry}>Speichern</Btn>
-        </div>
-      )}
-
-      {/* History table */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr>{["Datum", "Gewicht", "Bauch", "Brust", "Hüfte"].map(h => (
-                <th key={h} style={{ color: C.muted, fontFamily: "'DM Mono',monospace", fontSize: 10, letterSpacing: 1,
-                  textAlign: "left", padding: "4px 8px 10px 0", fontWeight: 400, textTransform: "uppercase" }}>{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {[...history].reverse().map((e, i) => (
-                <tr key={e.date} style={{ opacity: i === 0 ? 1 : 0.7 }}>
-                  <td style={{ padding: "8px 8px 8px 0", color: i === 0 ? C.accent : C.mutedLight, fontSize: 12 }}>{e.date.slice(5)}</td>
-                  {["weight", "waist", "chest", "hip"].map(k => (
-                    <td key={k} style={{ padding: "8px 8px 8px 0", color: C.text }}>{e[k]}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* AI Analysis */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>KI-Analyse</div>
-          <div style={{ background: C.accent, color: "#000", fontSize: 10, fontFamily: "'DM Mono',monospace", padding: "3px 8px", borderRadius: 20, fontWeight: 700 }}>AI</div>
-        </div>
-        {analysis ? (
-          <div style={{ animation: "fadeIn .4s ease" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: trendColor[analysis.trend] || C.muted }}/>
-              <span style={{ color: trendColor[analysis.trend], fontSize: 13, fontWeight: 600, textTransform: "capitalize" }}>{analysis.trend}</span>
-            </div>
-            <div style={{ color: C.mutedLight, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>{analysis.summary}</div>
-            {analysis.recommendations?.map((r, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
-                <span style={{ color: C.accent, fontSize: 16, lineHeight: 1 }}>→</span>
-                <span style={{ color: C.text, fontSize: 13 }}>{r}</span>
-              </div>
-            ))}
-            {analysis.calorieAdjustment && (
-              <div style={{ marginTop: 14, background: C.surface, borderRadius: 10, padding: 12 }}>
-                <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 4 }}>KALORIEN-EMPFEHLUNG</div>
-                <div style={{ color: analysis.calorieAdjustment === "erhöhen" ? C.green : analysis.calorieAdjustment === "reduzieren" ? C.red : C.fat, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>
-                  {analysis.calorieAdjustment.toUpperCase()}
-                </div>
-                <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{analysis.calorieReason}</div>
-              </div>
-            )}
-            <button onClick={getAnalysis} style={{ marginTop: 14, background: "none", border: `1px solid ${C.border}`, color: C.mutedLight, width: "100%", padding: "8px 0", borderRadius: 8, cursor: "pointer", fontSize: 12 }}>
-              Neu analysieren →
-            </button>
-          </div>
-        ) : (
-          <div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 14, lineHeight: 1.5 }}>
-              Analysiere deinen Fortschritt — erhalte personalisierte Empfehlungen für Kalorien, Makros und Training.
-            </div>
-            <Btn full accent onClick={getAnalysis} disabled={analyzing}
-              style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2 }}>
-              {analyzing ? "Analysiere…" : "Analyse starten"}
-            </Btn>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── WEEK TAB ──────────────────────────────────────────────────────────────────
 function WeightChart({ history, metric, color, unit }) {
   const data = history.filter(h => h[metric] > 0).slice(-12);
   if (data.length < 2) return (
@@ -1209,6 +1002,7 @@ function PlanTab({ goals }) {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
+  const [planMode, setPlanMode] = useState("mix"); // "notion"|"inspiration"|"mix"
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - (d.getDay() + 6) % 7);
@@ -1235,11 +1029,27 @@ function PlanTab({ goals }) {
 
     const sys = `Du bist Ernährungsberater. Erstelle einen 7-Tage Mahlzeitenplan.
 Antworte NUR mit JSON:
-{"days":[{"day":"Montag","meals":[{"type":"Frühstück","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X},{"type":"Mittagessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X},{"type":"Abendessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X}],"totalCalories":X,"totalProtein":X},...]}`;
+{"days":[{"day":"Montag","meals":[{"type":"Frühstück","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true/false},{"type":"Mittagessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true/false},{"type":"Abendessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true/false}],"totalCalories":X,"totalProtein":X},...]}`;
+
+    const notionPart = filtered.length > 0 && planMode !== "inspiration"
+      ? `Vorhandene Rezepte (bevorzuge höher bewertete, markiere isNew:false): ${JSON.stringify(filtered.slice(0,20).map(r=>({name:r.name,cal:r.calories,p:r.protein,c:r.carbs,f:r.fat,rating:r.rating,tags:r.tags})))}`
+      : "";
+
+    const inspirationPart = planMode !== "notion"
+      ? `Erfinde auch neue kreative Gerichte (markiere isNew:true) basierend auf Philipps Vorlieben: mediterrane Küche, Hühnchen, Pasta, gesund aber sättigend, günstig. Neue Gerichte sollen realistisch kochbar sein.`
+      : "";
+
+    const mixNote = planMode === "mix"
+      ? "Mische vorhandene Rezepte und neue Ideen ausgewogen (ca. 50/50)."
+      : planMode === "inspiration"
+      ? "Erstelle ausschließlich neue, kreative Gerichte — keine vorhandenen Rezepte verwenden."
+      : "Verwende ausschließlich die vorhandenen Rezepte.";
 
     const prompt = `Meine Ziele: ${goals.calories} kcal, ${goals.protein}g Protein, ${goals.carbs}g Carbs, ${goals.fat}g Fett.
-Verfügbare Rezepte (bevorzuge höher bewertete): ${JSON.stringify(filtered.slice(0,20).map(r=>({name:r.name,cal:r.calories,p:r.protein,c:r.carbs,f:r.fat,rating:r.rating,tags:r.tags})))}
-Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Rezept mehr als 2x. Makros sollen täglich nah am Ziel sein.`;
+${notionPart}
+${inspirationPart}
+${mixNote}
+Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Gericht mehr als 2x. Makros täglich nah am Ziel.`;
 
     try {
       const raw = await callClaude(sys, prompt);
@@ -1273,6 +1083,24 @@ Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Rezept mehr als 2x. Makros 
         Meal<span style={{ color: C.accent }}>-Plan</span>
       </div>
       <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>KI erstellt deinen Wochenplan aus deinen Notion-Rezepten</div>
+
+      {/* Mode selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {[["notion", "📚 Meine Rezepte"], ["mix", "✨ Mix"], ["inspiration", "💡 Neue Ideen"]].map(([key, label]) => (
+          <button key={key} onClick={() => setPlanMode(key)} style={{
+            flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 12,
+            border: `1px solid ${planMode===key ? C.accent : C.border}`,
+            background: planMode===key ? `${C.accent}15` : C.card,
+            color: planMode===key ? C.accent : C.muted,
+            cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600,
+          }}>{label}</button>
+        ))}
+      </div>
+      {planMode === "inspiration" && (
+        <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: C.accent }}>
+          ✦ KI erfindet neue Gerichte basierend auf deinen Vorlieben: mediterran, Hühnchen, Pasta, gesund & günstig
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
@@ -1342,7 +1170,10 @@ Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Rezept mehr als 2x. Makros 
                 <div key={j} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${C.border}` }}>
                   <div>
                     <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2 }}>{meal.type}</div>
-                    <div style={{ fontSize: 13, color: C.text }}>{meal.recipe}</div>
+                    <div style={{ fontSize: 13, color: C.text }}>
+                    {meal.recipe}
+                    {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}>✦ Neu</span>}
+                  </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16 }}>{meal.calories}</div>
