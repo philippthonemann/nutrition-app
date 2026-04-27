@@ -1444,7 +1444,7 @@ export default function App() {
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
-        {tab === "plan" && <PlanTab goals={goals} recipes={[]}/>}
+        {tab === "plan" && <PlanTab goals={goals} logged={logged}/>}
         {tab === "week" && <AnalyticsTab goals={goals}/>}
         {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
