@@ -787,6 +787,52 @@ Analysiere Trend und gib Empfehlungen.`);
 }
 
 // ── WEEK TAB ──────────────────────────────────────────────────────────────────
+function WeightChart({ history, metric, color, unit }) {
+  const data = history.filter(h => h[metric] > 0).slice(-12);
+  if (data.length < 2) return (
+    <div style={{ textAlign: "center", color: C.muted, fontSize: 13, padding: "20px 0" }}>Mindestens 2 Messungen nötig</div>
+  );
+  const vals = data.map(d => d[metric]);
+  const max = Math.max(...vals), min = Math.min(...vals), range = max - min || 1;
+  const W = 320, H = 120, PAD = 20;
+  const points = data.map((d, i) => ({
+    x: PAD + (i / (data.length-1)) * (W - PAD*2),
+    y: PAD + ((max - d[metric]) / range) * (H - PAD*2),
+    val: d[metric], date: d.date,
+  }));
+  const pathD = points.map((p,i) => (i===0?"M":"L") + " " + p.x + " " + p.y).join(" ");
+  const areaD = pathD + " L " + points[points.length-1].x + " " + H + " L " + points[0].x + " " + H + " Z";
+  const trend = vals[vals.length-1] - vals[0];
+  const isGoodDown = ["weight","waist","hip"].includes(metric);
+  const trendColor = trend === 0 ? C.muted : (isGoodDown ? (trend < 0 ? C.green : C.red) : (trend > 0 ? C.green : C.red));
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: C.muted }}>{data[0].date.slice(5)} bis {data[data.length-1].date.slice(5)}</div>
+        <div style={{ fontSize: 13, color: trendColor, fontWeight: 600 }}>{trend > 0 ? "+" : ""}{trend.toFixed(1)}{unit}</div>
+      </div>
+      <svg width="100%" viewBox={"0 0 " + W + " " + H} style={{ overflow: "visible" }}>
+        <defs>
+          <linearGradient id={"grad-" + metric} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d={areaD} fill={"url(#grad-" + metric + ")"}/>
+        <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        {points.map((p,i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={i===points.length-1?5:3} fill={i===points.length-1?color:"none"} stroke={color} strokeWidth="1.5"/>
+            {i===points.length-1 && <text x={p.x} y={p.y-10} textAnchor="middle" fill={color} fontSize="11">{p.val}{unit}</text>}
+          </g>
+        ))}
+        <text x={PAD} y={H-4} fill={C.muted} fontSize="9">{data[0].date.slice(5)}</text>
+        <text x={W-PAD} y={H-4} fill={C.muted} fontSize="9" textAnchor="end">{data[data.length-1].date.slice(5)}</text>
+      </svg>
+    </div>
+  );
+}
+
 function AnalyticsTab({ goals }) {
   const now = new Date();
   const [subTab, setSubTab] = useState("nutrition");
