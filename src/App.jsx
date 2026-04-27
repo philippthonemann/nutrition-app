@@ -142,7 +142,7 @@ async function callClaude(system, userContent, imageBase64 = null) {
       system, messages: [{ role: "user", content }]
     })
   });
-  const rawText = await res.text(); console.log("API:", rawText.slice(0,300)); const data = JSON.parse(rawText);
+  const data = await res.json();
   const text = data.content?.find(b => b.type === "text")?.text || "";
   return text.replace(/```json|```/g, "").trim();
 }
@@ -337,7 +337,7 @@ function ScanTab({ onAdd }) {
 Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"confidence":"hoch|mittel|niedrig","note":"..."}`;
     try {
       const raw = await callClaude(sys, text.trim() || "Schätze die Nährwerte.", imageB64);
-      console.log("Raw response:", raw);
+      
       setResult(JSON.parse(raw));
     } catch(e) { console.error("Scan error:", e, e.message); setResult({ name: "Fehler", calories: 0, protein: 0, carbs: 0, fat: 0, note: e.message || "Analyse fehlgeschlagen" }); }
     setLoading(false);
@@ -359,7 +359,7 @@ Passe die Nährwerte entsprechend an.`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, system: sys, messages: [{ role: 'user', content: prompt }] })
       });
-      const rawText = await res.text(); console.log("API:", rawText.slice(0,300)); const data = JSON.parse(rawText);
+      const data = await res.json();
       const text = data.content?.find(b => b.type === 'text')?.text || '';
       const adjusted = JSON.parse(text.replace(/```json|```/g, '').trim());
       onAdd({ ...selectedRecipe, ...adjusted, id: Date.now(), estimated: true });
