@@ -80,6 +80,13 @@ async function saveGoals(goals) {
   await supabase.from("goals").insert([goals]);
 }
 
+async function loadMonthMeals(year, month) {
+  const start = `${year}-${String(month).padStart(2,'0')}-01`;
+  const end = new Date(year, month, 0).toISOString().split("T")[0];
+  const { data } = await supabase.from("meals").select("date, calories, protein, carbs, fat").gte("date", start).lte("date", end);
+  return data || [];
+}
+
 async function loadWeekMeals() {
   const start = new Date();
   start.setDate(start.getDate() - 6);
@@ -985,7 +992,7 @@ export default function App() {
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
-        {tab === "week" && <WeekTab goals={goals}/> }
+        {tab === "week" && <AnalyticsTab goals={goals}/>}
         {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
 
@@ -1005,7 +1012,7 @@ export default function App() {
           </button>
           <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? C.accent : C.muted }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
-            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Woche</span>
+            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Analytics</span>
           </button>
           <button onClick={() => setTab("goals")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "goals" ? C.accent : C.muted }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
