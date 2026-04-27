@@ -1104,7 +1104,7 @@ Antworte NUR mit JSON, kein Markdown:
 ${notionPart}
 ${inspirationPart}
 ${mixNote}
-Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Gericht mehr als 2x. Makros täglich nah am Ziel.`;
+Erstelle einen 3-Tage Plan (Montag bis Mittwoch). Maximal 2-3 Zutaten pro Gericht, maximal 2 Kochschritte. Makros täglich nah am Ziel. Halte die Antwort kurz und präzise.`;
 
     try {
       const raw = await callClaude(sys, prompt);
@@ -1206,7 +1206,7 @@ Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Gericht mehr als 2x. Makros
         padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2,
         cursor: loading||loadingRecipes ? "not-allowed" : "pointer", marginBottom: 16,
       }}>
-        {loadingRecipes ? "Lade Rezepte…" : loading ? "KI plant…" : "Wochenplan generieren ✦"}
+        {loadingRecipes ? "Lade Rezepte…" : loading ? "KI plant…" : "3-Tage Plan generieren ✦"}
       </button>
 
       {/* Plan display */}
@@ -1241,7 +1241,7 @@ Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Gericht mehr als 2x. Makros
             padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2,
             cursor: "pointer", marginBottom: 16,
           }}>
-            Plan ins Log übernehmen →
+            Plan ins Log übernehmen (3 Tage) →
           </button>
 
           <button onClick={() => setPlan(null)} style={{
