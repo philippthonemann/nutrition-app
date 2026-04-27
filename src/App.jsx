@@ -157,6 +157,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const calPct = Math.min((totals.calories / goals.calories) * 100, 100);
   const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
 
   const formatDate = (dateStr) => {
     const d = new Date(dateStr + "T00:00:00");
@@ -841,6 +842,7 @@ function GoalsTab({ goals, setGoals }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(goals);
   const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
