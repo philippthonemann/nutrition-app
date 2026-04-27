@@ -142,7 +142,7 @@ async function callClaude(system, userContent, imageBase64 = null) {
       system, messages: [{ role: "user", content }]
     })
   });
-  const data = await res.json();
+  const rawText = await res.text(); console.log("API:", rawText.slice(0,300)); const data = JSON.parse(rawText);
   const text = data.content?.find(b => b.type === "text")?.text || "";
   return text.replace(/```json|```/g, "").trim();
 }
@@ -359,7 +359,7 @@ Passe die Nährwerte entsprechend an.`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, system: sys, messages: [{ role: 'user', content: prompt }] })
       });
-      const data = await res.json();
+      const rawText = await res.text(); console.log("API:", rawText.slice(0,300)); const data = JSON.parse(rawText);
       const text = data.content?.find(b => b.type === 'text')?.text || '';
       const adjusted = JSON.parse(text.replace(/```json|```/g, '').trim());
       onAdd({ ...selectedRecipe, ...adjusted, id: Date.now(), estimated: true });
