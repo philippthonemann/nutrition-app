@@ -40,8 +40,9 @@ async function loadNotionRecipes() {
 // Supabase helpers
 const today = () => new Date().toISOString().split("T")[0];
 
-async function loadTodayMeals() {
-  const { data } = await supabase.from("meals").select("*").eq("date", today()).order("created_at");
+async function loadTodayMeals(date = null) {
+  const d = date || today();
+  const { data } = await supabase.from("meals").select("*").eq("date", d).order("created_at");
   return data || [];
 }
 
@@ -51,7 +52,7 @@ async function saveMeal(meal) {
     protein: meal.protein || 0, carbs: meal.carbs || 0, fat: meal.fat || 0,
     fiber: meal.fiber || 0, sugar: meal.sugar || 0, sodium: meal.sodium || 0,
     caffeine: meal.caffeine || 0, water: meal.water || 0, alcohol: meal.alcohol || 0,
-    estimated: meal.estimated || false, date: today()
+    estimated: meal.estimated || false, date: meal.date || today()
   }]).select().single();
   return data;
 }
@@ -149,32 +150,37 @@ async function callClaude(system, userContent, imageBase64 = null) {
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function TodayTab({ logged, setLogged, goals, onOpenScan }) {
+function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelectedDate }) {
   const totals = logged.reduce((a, m) => ({
     calories: a.calories + (m.calories || 0), protein: a.protein + (m.protein || 0),
     carbs: a.carbs + (m.carbs || 0), fat: a.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const calPct = Math.min((totals.calories / goals.calories) * 100, 100);
-  const [showAdd, setShowAdd] = useState(false);
-  const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const [recipes, setRecipes] = useState([]);
-  const [loadingRecipes, setLoadingRecipes] = useState(false);
 
-  useEffect(() => {
-    if (showAdd && recipes.length === 0) {
-      setLoadingRecipes(true);
-      loadNotionRecipes().then(data => { setRecipes(data); setLoadingRecipes(false); });
-    }
-  }, [showAdd]);
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr + "T00:00:00");
+    const t = new Date(today() + "T00:00:00");
+    const diff = Math.round((t - d) / 86400000);
+    if (diff === 0) return "Heute";
+    if (diff === 1) return "Gestern";
+    return d.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" });
+  };
 
-  const filtered = recipes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+  const changeDate = (days) => {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    const newDate = d.toISOString().split("T")[0];
+    if (newDate <= today()) setSelectedDate(newDate);
+  };
+
+  const isToday = selectedDate === today();
 
   const handleAdd = async (recipe) => {
     setSaving(true);
-    const saved = await saveMeal(recipe);
+    const saved = await saveMeal({ ...recipe, date: selectedDate });
     if (saved) setLogged(p => [...p, saved]);
-    setShowAdd(false); setSearch(""); setSaving(false);
+    setSaving(false);
   };
 
   const handleRemove = async (id) => {
@@ -184,6 +190,15 @@ function TodayTab({ logged, setLogged, goals, onOpenScan }) {
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
+      {/* Date Navigator */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, background: C.card, borderRadius: 14, padding: "10px 16px", border: `1px solid ${C.border}` }}>
+        <button onClick={() => changeDate(-1)} style={{ background: "none", border: "none", color: C.mutedLight, cursor: "pointer", fontSize: 20, padding: "0 8px" }}>‹</button>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: isToday ? C.accent : C.text, letterSpacing: 1 }}>{formatDate(selectedDate)}</div>
+          {!isToday && <div style={{ fontSize: 11, color: C.muted }}>{selectedDate}</div>}
+        </div>
+        <button onClick={() => changeDate(1)} disabled={isToday} style={{ background: "none", border: "none", color: isToday ? C.border : C.mutedLight, cursor: isToday ? "default" : "pointer", fontSize: 20, padding: "0 8px" }}>›</button>
+      </div>
       {/* Calorie hero */}
       <div style={{ background: C.card, borderRadius: 20, padding: 20, marginBottom: 14, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -286,6 +301,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan }) {
 // ── AI SCAN TAB ───────────────────────────────────────────────────────────────
 function ScanTab({ onAdd }) {
   const [mode, setMode] = useState(null); // "ai"|"notion"|"manual"
+  const [scanDate, setScanDate] = useState(today());
   const [text, setText] = useState("");
   const [imageB64, setImageB64] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -345,7 +361,7 @@ Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,
 
   const adjustRecipe = async () => {
     if (!selectedRecipe) return;
-    if (!recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); return; }
+    if (!recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false, date: scanDate }); return; }
     setAdjusting(true);
     const sys = `Du bist Ernährungsexperte. Passe die Nährwerte eines Rezepts basierend auf dem Hinweis an.
 Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"note":"..."}`;
@@ -362,8 +378,8 @@ Passe die Nährwerte entsprechend an.`;
       const data = await res.json();
       const text = data.content?.find(b => b.type === 'text')?.text || '';
       const adjusted = JSON.parse(text.replace(/```json|```/g, '').trim());
-      onAdd({ ...selectedRecipe, ...adjusted, id: Date.now(), estimated: true });
-    } catch { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false }); }
+      onAdd({ ...selectedRecipe, ...adjusted, id: Date.now(), estimated: true, date: scanDate });
+    } catch { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false, date: scanDate }); }
     setAdjusting(false);
   };
 
@@ -375,7 +391,24 @@ Passe die Nährwerte entsprechend an.`;
       <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
         Mahlzeit <span style={{ color: C.accent }}>hinzufügen</span>
       </div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Wähle wie du einloggen möchtest</div>
+      <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Wähle wie du einloggen möchtest</div>
+
+      {/* Date selector */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {[["Heute", today()], ["Gestern", new Date(Date.now()-86400000).toISOString().split("T")[0]]].map(([label, date]) => (
+          <button key={label} onClick={() => setScanDate(date)} style={{
+            padding: "8px 16px", borderRadius: 10, border: `1px solid ${scanDate === date ? C.accent : C.border}`,
+            background: scanDate === date ? `${C.accent}15` : C.card,
+            color: scanDate === date ? C.accent : C.mutedLight,
+            cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
+          }}>{label}</button>
+        ))}
+        <input type="date" value={scanDate} max={today()} onChange={e => setScanDate(e.target.value)} style={{
+          flex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
+          padding: "8px 12px", color: C.mutedLight, fontFamily: "'DM Sans',sans-serif",
+          fontSize: 13, outline: "none", colorScheme: "dark",
+        }}/>
+      </div>
 
       {/* Mode selector */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
@@ -443,7 +476,7 @@ Passe die Nährwerte entsprechend an.`;
               </div>
               {result.note && <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 10 }}>{result.note}</div>}
               <div style={{ display: "flex", gap: 10 }}>
-                <button style={{ flex: 1, background: C.accent, color: "#000", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true })}>Zum Log →</button>
+                <button style={{ flex: 1, background: C.accent, color: "#000", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true, date: scanDate })}>Zum Log →</button>
                 <button style={{ background: C.card, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 12, padding: "13px 16px", cursor: "pointer", fontSize: 13 }} onClick={() => { setResult(null); setText(""); setImageB64(null); setImagePreview(null); }}>Neu</button>
               </div>
             </div>
@@ -529,7 +562,7 @@ Passe die Nährwerte entsprechend an.`;
               ))}
             </div>
           </div>
-          <button onClick={() => { if (!manual.name) return; onAdd({ ...manual, calories: parseFloat(manual.calories)||0, protein: parseFloat(manual.protein)||0, carbs: parseFloat(manual.carbs)||0, fat: parseFloat(manual.fat)||0, id: Date.now() }); }} disabled={!manual.name} style={{ width: "100%", background: manual.name ? C.accent : C.border, color: manual.name ? "#000" : C.muted, border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: manual.name ? "pointer" : "not-allowed" }}>
+          <button onClick={() => { if (!manual.name) return; onAdd({ ...manual, calories: parseFloat(manual.calories)||0, protein: parseFloat(manual.protein)||0, carbs: parseFloat(manual.carbs)||0, fat: parseFloat(manual.fat)||0, id: Date.now(), date: scanDate }); }} disabled={!manual.name} style={{ width: "100%", background: manual.name ? C.accent : C.border, color: manual.name ? "#000" : C.muted, border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: manual.name ? "pointer" : "not-allowed" }}>
             Hinzufügen
           </button>
         </div>
@@ -884,6 +917,7 @@ export default function App() {
   const [logged, setLogged] = useState([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(today());
 
   const dateStr = new Date().toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" }).toUpperCase();
 
@@ -910,6 +944,10 @@ export default function App() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    loadTodayMeals(selectedDate).then(meals => setLogged(meals));
+  }, [selectedDate]);
 
   const handleAddFromScan = async (meal) => {
     const saved = await saveMeal(meal);
@@ -942,7 +980,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: "0 20px" }}>
-        {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")}/>}
+        {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "body" && <BodyTab/>}
         {tab === "week" && <WeekTab goals={goals}/> }
