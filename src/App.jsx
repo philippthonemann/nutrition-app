@@ -789,22 +789,26 @@ Analysiere Trend und gib Empfehlungen.`);
 // ── WEEK TAB ──────────────────────────────────────────────────────────────────
 function AnalyticsTab({ goals }) {
   const now = new Date();
+  const [subTab, setSubTab] = useState("nutrition");
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [monthData, setMonthData] = useState([]);
   const [weekData, setWeekData] = useState([]);
+  const [bodyHistory, setBodyHistory] = useState([]);
+  const [activeChart, setActiveChart] = useState("weight");
 
   useEffect(() => {
-    Promise.all([loadMonthMeals(viewYear, viewMonth), loadWeekMeals()]).then(([month, week]) => {
+    Promise.all([loadMonthMeals(viewYear, viewMonth), loadWeekMeals(), loadBodyMeasurements()]).then(([month, week, body]) => {
       setMonthData(month);
+      setBodyHistory(body);
       const days = ["Mo","Di","Mi","Do","Fr","Sa","So"];
-      const todayIdx = (new Date().getDay() + 6) % 7;
-      setWeekData(days.map((day, i) => {
+      const todayIdx = (new Date().getDay()+6)%7;
+      setWeekData(days.map((day,i) => {
         const date = new Date();
-        date.setDate(date.getDate() - (todayIdx - i));
+        date.setDate(date.getDate()-(todayIdx-i));
         const dateStr = date.toISOString().split("T")[0];
-        const dayMeals = week.filter(m => m.date === dateStr);
-        return { day, dateStr, cal: dayMeals.reduce((a,m)=>a+(m.calories||0),0), protein: dayMeals.reduce((a,m)=>a+(m.protein||0),0), today: i === todayIdx };
+        const dayMeals = week.filter(m => m.date===dateStr);
+        return { day, dateStr, cal: dayMeals.reduce((a,m)=>a+(m.calories||0),0), protein: dayMeals.reduce((a,m)=>a+(m.protein||0),0), today: i===todayIdx };
       }));
     });
   }, [viewMonth, viewYear]);
@@ -819,21 +823,20 @@ function AnalyticsTab({ goals }) {
   });
 
   const loggedDays = Object.keys(dailyTotals).length;
-  const avgCal = loggedDays > 0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.calories,0)/loggedDays) : 0;
-  const avgProtein = loggedDays > 0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.protein,0)/loggedDays) : 0;
-  const avgCarbs = loggedDays > 0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.carbs,0)/loggedDays) : 0;
-  const avgFat = loggedDays > 0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.fat,0)/loggedDays) : 0;
+  const avgCal = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.calories,0)/loggedDays) : 0;
+  const avgProtein = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.protein,0)/loggedDays) : 0;
+  const avgCarbs = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.carbs,0)/loggedDays) : 0;
+  const avgFat = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.fat,0)/loggedDays) : 0;
   const proteinGoalDays = Object.values(dailyTotals).filter(d=>d.protein>=goals.protein).length;
+  const avgWeekCal = weekData.filter(d=>d.cal>0).length>0 ? Math.round(weekData.filter(d=>d.cal>0).reduce((a,d)=>a+d.cal,0)/weekData.filter(d=>d.cal>0).length) : 0;
+  const avgWeekProtein = weekData.filter(d=>d.protein>0).length>0 ? Math.round(weekData.filter(d=>d.protein>0).reduce((a,d)=>a+d.protein,0)/weekData.filter(d=>d.protein>0).length) : 0;
 
   let streak = 0;
   const checkDate = new Date();
-  for (let i = 0; i < 365; i++) {
+  for (let i=0; i<365; i++) {
     const dateStr = checkDate.toISOString().split("T")[0];
     if (dailyTotals[dateStr]) { streak++; checkDate.setDate(checkDate.getDate()-1); } else break;
   }
-
-  const avgWeekCal = weekData.filter(d=>d.cal>0).length > 0 ? Math.round(weekData.filter(d=>d.cal>0).reduce((a,d)=>a+d.cal,0)/weekData.filter(d=>d.cal>0).length) : 0;
-  const avgWeekProtein = weekData.filter(d=>d.protein>0).length > 0 ? Math.round(weekData.filter(d=>d.protein>0).reduce((a,d)=>a+d.protein,0)/weekData.filter(d=>d.protein>0).length) : 0;
 
   const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
   const firstDayOfMonth = (new Date(viewYear, viewMonth-1, 1).getDay()+6)%7;
@@ -842,12 +845,22 @@ function AnalyticsTab({ goals }) {
   const getHeatmapColor = (dateStr) => {
     const d = dailyTotals[dateStr];
     if (!d) return C.border;
-    const pct = d.calories / goals.calories;
-    if (pct >= 0.9 && pct <= 1.1) return C.green;
-    if (pct >= 0.7) return C.accent;
-    if (pct > 0) return "#555";
+    const pct = d.calories/goals.calories;
+    if (pct>=0.9 && pct<=1.1) return C.green;
+    if (pct>=0.7) return C.accent;
+    if (pct>0) return "#555";
     return C.border;
   };
+
+  const bodyMetrics = [
+    { key:"weight", label:"Gewicht", unit:"kg", color:C.accent },
+    { key:"waist", label:"Bauch", unit:"cm", color:C.protein },
+    { key:"chest", label:"Brust", unit:"cm", color:C.carbs },
+    { key:"hip", label:"Hüfte", unit:"cm", color:C.fat },
+  ];
+
+  const latest = bodyHistory[bodyHistory.length-1];
+  const prev = bodyHistory[bodyHistory.length-2];
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
@@ -855,115 +868,177 @@ function AnalyticsTab({ goals }) {
         Ana<span style={{ color: C.accent }}>lytics</span>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-        {[
-          { label: "Ø Kalorien", value: avgCal, unit: "kcal", color: C.accent, sub: `Ziel: ${goals.calories}` },
-          { label: "Ø Protein", value: avgProtein, unit: "g", color: C.protein, sub: `Ziel: ${goals.protein}g` },
-          { label: "Log-Streak", value: streak, unit: "Tage", color: C.carbs, sub: "in Folge" },
-          { label: "Protein-Ziel ✓", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} geloggt` },
-        ].map(k => (
-          <div key={k.label} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{k.label}</div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: k.color }}>
-              {k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span>
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{k.sub}</div>
-          </div>
+      {/* Sub-tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {[["nutrition", "🍽️ Ernährung"], ["body", "💪 Körper"]].map(([key, label]) => (
+          <button key={key} onClick={() => setSubTab(key)} style={{
+            flex: 1, padding: "10px 0", borderRadius: 12,
+            border: `1px solid ${subTab===key ? C.accent : C.border}`,
+            background: subTab===key ? `${C.accent}15` : C.card,
+            color: subTab===key ? C.accent : C.muted,
+            cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600,
+          }}>{label}</button>
         ))}
       </div>
 
-      {/* Two Rings */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Diese Woche</div>
-        <div style={{ display: "flex", justifyContent: "space-around" }}>
-          {[[avgWeekCal, goals.calories, C.accent, "kcal", "Kalorien"], [avgWeekProtein, goals.protein, C.protein, "g", "Protein"]].map(([val, goal, color, unit, label]) => (
-            <div key={label} style={{ textAlign: "center" }}>
-              <div style={{ position: "relative", display: "inline-block" }}>
-                <Ring value={val} goal={goal} color={color} size={110} sw={10}/>
-                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color, lineHeight: 1 }}>{goal > 0 ? Math.round((val/goal)*100) : 0}%</div>
-                  <div style={{ fontSize: 10, color: C.muted }}>{label}</div>
+      {/* ── NUTRITION SUB-TAB ── */}
+      {subTab === "nutrition" && (
+        <div style={{ animation: "fadeIn .2s ease" }}>
+          {/* KPI Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+            {[
+              { label: "Ø Kalorien", value: avgCal, unit: "kcal", color: C.accent, sub: `Ziel: ${goals.calories}` },
+              { label: "Ø Protein", value: avgProtein, unit: "g", color: C.protein, sub: `Ziel: ${goals.protein}g` },
+              { label: "Log-Streak", value: streak, unit: "Tage", color: C.carbs, sub: "in Folge" },
+              { label: "Protein-Ziel ✓", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} geloggt` },
+            ].map(k => (
+              <div key={k.label} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{k.label}</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: k.color }}>{k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{k.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Two Rings */}
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Diese Woche</div>
+            <div style={{ display: "flex", justifyContent: "space-around" }}>
+              {[[avgWeekCal, goals.calories, C.accent, "kcal", "Kalorien"], [avgWeekProtein, goals.protein, C.protein, "g", "Protein"]].map(([val, goal, color, unit, label]) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <div style={{ position: "relative", display: "inline-block" }}>
+                    <Ring value={val} goal={goal} color={color} size={110} sw={10}/>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color, lineHeight: 1 }}>{goal>0?Math.round((val/goal)*100):0}%</div>
+                      <div style={{ fontSize: 10, color: C.muted }}>{label}</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.text }}>{val}{unit}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>/ {goal}{unit}</div>
+                  </div>
                 </div>
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.text }}>{val}{unit}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>/ {goal}{unit}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Week bars */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Diese Woche</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          {weekData.map(d => {
-            const pct = Math.min((d.cal/goals.calories)*100, 100);
-            return (
-              <div key={d.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{ color: d.today ? C.accent : C.muted, fontSize: 9, fontFamily: "'DM Mono',monospace" }}>{d.cal||"–"}</div>
-                <div style={{ width: "100%", height: 70, background: C.border, borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
-                  <div style={{ width: "100%", height: `${pct}%`, background: d.today ? C.accent : d.cal > goals.calories ? C.red : "#2a2a2a", borderRadius: "4px 4px 0 0", minHeight: d.cal>0?4:0 }}/>
-                </div>
-                <div style={{ color: d.today ? C.accent : C.muted, fontSize: 10, fontWeight: d.today?700:400 }}>{d.day}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Month Heatmap */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <button onClick={() => { const d = new Date(viewYear, viewMonth-2); setViewMonth(d.getMonth()+1); setViewYear(d.getFullYear()); }} style={{ background:"none", border:"none", color:C.mutedLight, cursor:"pointer", fontSize:22 }}>‹</button>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>{monthName}</div>
-          <button onClick={() => { const d = new Date(viewYear, viewMonth); if (d<=new Date()) { setViewMonth(d.getMonth()+1); setViewYear(d.getFullYear()); }}} style={{ background:"none", border:"none", color: C.mutedLight, cursor:"pointer", fontSize:22 }}>›</button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-          {["Mo","Di","Mi","Do","Fr","Sa","So"].map(d => (
-            <div key={d} style={{ textAlign:"center", fontSize:9, color:C.muted, paddingBottom:4 }}>{d}</div>
-          ))}
-          {Array.from({ length: firstDayOfMonth }).map((_,i) => <div key={`e${i}`}/>)}
-          {Array.from({ length: daysInMonth }).map((_,i) => {
-            const day = i+1;
-            const dateStr = `${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-            const color = getHeatmapColor(dateStr);
-            const isToday = dateStr === today();
-            return (
-              <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border: isToday ? `1.5px solid ${C.accent}` : "none", fontSize:9, color: color===C.border?C.muted:"#000", fontWeight:600 }}>{day}</div>
-            );
-          })}
-        </div>
-        <div style={{ display:"flex", gap:10, marginTop:12, flexWrap:"wrap" }}>
-          {[[C.green,"Im Ziel"],[C.accent,"Nah dran"],["#555","Geloggt"],[C.border,"Kein Log"]].map(([c,l]) => (
-            <div key={l} style={{ display:"flex", alignItems:"center", gap:4 }}>
-              <div style={{ width:10, height:10, borderRadius:2, background:c }}/>
-              <span style={{ fontSize:10, color:C.muted }}>{l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Macro averages */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Monat</div>
-        {[["Kalorien",avgCal,goals.calories,C.accent,"kcal"],["Protein",avgProtein,goals.protein,C.protein,"g"],["Carbs",avgCarbs,goals.carbs,C.carbs,"g"],["Fett",avgFat,goals.fat,C.fat,"g"]].map(([l,v,g,c,u]) => (
-          <div key={l} style={{ marginBottom:14 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-              <span style={{ fontSize:13, color:C.mutedLight }}>{l}</span>
-              <span style={{ fontSize:13, color:C.text }}>{v}{u} <span style={{ color:C.muted }}>/ {g}{u}</span></span>
-            </div>
-            <div style={{ height:4, background:C.border, borderRadius:2 }}>
-              <div style={{ height:"100%", width:`${Math.min((v/g)*100,100)}%`, background: v>g?C.red:c, borderRadius:2 }}/>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+
+          {/* Week bars */}
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Diese Woche</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              {weekData.map(d => {
+                const pct = Math.min((d.cal/goals.calories)*100, 100);
+                return (
+                  <div key={d.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <div style={{ color: d.today?C.accent:C.muted, fontSize: 9, fontFamily: "'DM Mono',monospace" }}>{d.cal||"–"}</div>
+                    <div style={{ width: "100%", height: 70, background: C.border, borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
+                      <div style={{ width: "100%", height: `${pct}%`, background: d.today?C.accent:d.cal>goals.calories?C.red:"#2a2a2a", borderRadius: "4px 4px 0 0", minHeight: d.cal>0?4:0 }}/>
+                    </div>
+                    <div style={{ color: d.today?C.accent:C.muted, fontSize: 10, fontWeight: d.today?700:400 }}>{d.day}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Month Heatmap */}
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <button onClick={() => { const d=new Date(viewYear,viewMonth-2); setViewMonth(d.getMonth()+1); setViewYear(d.getFullYear()); }} style={{ background:"none", border:"none", color:C.mutedLight, cursor:"pointer", fontSize:22 }}>‹</button>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>{monthName}</div>
+              <button onClick={() => { const d=new Date(viewYear,viewMonth); if(d<=new Date()){setViewMonth(d.getMonth()+1);setViewYear(d.getFullYear());}}} style={{ background:"none", border:"none", color:C.mutedLight, cursor:"pointer", fontSize:22 }}>›</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+              {["Mo","Di","Mi","Do","Fr","Sa","So"].map(d => <div key={d} style={{ textAlign:"center", fontSize:9, color:C.muted, paddingBottom:4 }}>{d}</div>)}
+              {Array.from({length:firstDayOfMonth}).map((_,i) => <div key={`e${i}`}/>)}
+              {Array.from({length:daysInMonth}).map((_,i) => {
+                const day=i+1;
+                const dateStr=`${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                const color=getHeatmapColor(dateStr);
+                const isToday=dateStr===today();
+                return <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#000", fontWeight:600 }}>{day}</div>;
+              })}
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:12, flexWrap:"wrap" }}>
+              {[[C.green,"Im Ziel"],[C.accent,"Nah dran"],["#555","Geloggt"],[C.border,"Kein Log"]].map(([c,l]) => (
+                <div key={l} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <div style={{ width:10, height:10, borderRadius:2, background:c }}/>
+                  <span style={{ fontSize:10, color:C.muted }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Macro averages */}
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Monat</div>
+            {[["Kalorien",avgCal,goals.calories,C.accent,"kcal"],["Protein",avgProtein,goals.protein,C.protein,"g"],["Carbs",avgCarbs,goals.carbs,C.carbs,"g"],["Fett",avgFat,goals.fat,C.fat,"g"]].map(([l,v,g,c,u]) => (
+              <div key={l} style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                  <span style={{ fontSize:13, color:C.mutedLight }}>{l}</span>
+                  <span style={{ fontSize:13, color:C.text }}>{v}{u} <span style={{ color:C.muted }}>/ {g}{u}</span></span>
+                </div>
+                <div style={{ height:4, background:C.border, borderRadius:2 }}>
+                  <div style={{ height:"100%", width:`${Math.min((v/g)*100,100)}%`, background:v>g?C.red:c, borderRadius:2 }}/>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── BODY SUB-TAB ── */}
+      {subTab === "body" && (
+        <div style={{ animation: "fadeIn .2s ease" }}>
+          {/* Latest measurements */}
+          {latest && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {bodyMetrics.map(m => {
+                const delta = latest && prev ? (latest[m.key] - prev[m.key]).toFixed(1) : null;
+                const isGoodDown = ["weight","waist","hip"].includes(m.key);
+                const positive = delta ? (isGoodDown ? parseFloat(delta)<0 : parseFloat(delta)>0) : null;
+                return (
+                  <div key={m.key} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{m.label}</div>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: m.color }}>{latest[m.key]||"–"}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span></div>
+                    {delta && <div style={{ fontSize: 12, color: positive?C.green:C.red, marginTop: 2 }}>{parseFloat(delta)>0?"+":""}{delta}{m.unit}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Chart selector */}
+          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              {bodyMetrics.map(m => (
+                <button key={m.key} onClick={() => setActiveChart(m.key)} style={{
+                  flex: 1, padding: "6px 0", borderRadius: 8,
+                  border: `1px solid ${activeChart===m.key?m.color:C.border}`,
+                  background: activeChart===m.key?`${m.color}15`:"none",
+                  color: activeChart===m.key?m.color:C.muted,
+                  cursor: "pointer", fontSize: 10, fontFamily: "'DM Mono',monospace",
+                }}>{m.label}</button>
+              ))}
+            </div>
+            {bodyMetrics.filter(m=>m.key===activeChart).map(m => (
+              <WeightChart key={m.key} history={bodyHistory} metric={m.key} color={m.color} unit={m.unit}/>
+            ))}
+          </div>
+
+          {!latest && (
+            <div style={{ background: C.card, borderRadius: 16, padding: 30, border: `1px solid ${C.border}`, textAlign: "center" }}>
+              <div style={{ color: C.muted, fontSize: 14 }}>Noch keine Körpermessungen</div>
+              <div style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>Füge Messungen im Körper-Tab hinzu</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
 
 // ── GOALS TAB ─────────────────────────────────────────────────────────────────
 function GoalsTab({ goals, setGoals }) {
