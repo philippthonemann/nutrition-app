@@ -1051,56 +1051,6 @@ function MealPlanCard({ meal }) {
 }
 
 // ── PLAN TAB ─────────────────────────────────────────────────────────────────
-function MealPlanCard({ meal }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4 }}>
-      <div onClick={() => setExpanded(!expanded)} style={{ cursor: "pointer" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2, letterSpacing: 1 }}>{meal.type?.toUpperCase()}</div>
-            <div style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>
-              {meal.recipe}
-              {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}>✦ Neu</span>}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-              {[["P", meal.protein+"g", C.protein], ["C", meal.carbs+"g", C.carbs], ["F", meal.fat+"g", C.fat]].map(([l,v,c]) => (
-                <span key={l} style={{ fontSize: 11, color: c }}>{l}: {v}</span>
-              ))}
-            </div>
-          </div>
-          <div style={{ textAlign: "right", marginLeft: 10 }}>
-            <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{meal.calories} kcal</div>
-            <span style={{ color: C.muted, fontSize: 12 }}>{expanded ? "▲" : "▼"}</span>
-          </div>
-        </div>
-      </div>
-      {expanded && (
-        <div style={{ marginTop: 10, animation: "fadeIn .2s ease" }}>
-          {meal.ingredients?.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUTATEN</div>
-              {meal.ingredients.map((ing, i) => (
-                <div key={i} style={{ fontSize: 12, color: C.mutedLight, padding: "3px 0", borderBottom: `1px solid ${C.border}` }}>· {ing}</div>
-              ))}
-            </div>
-          )}
-          {meal.steps?.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUBEREITUNG</div>
-              {meal.steps.map((step, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 6, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>{i+1}</span>
-                  <span style={{ fontSize: 12, color: C.mutedLight, lineHeight: 1.5 }}>{step}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function PlanTab({ goals, logged }) {
   const [mode, setMode] = useState(null); // "inspo"|"fillup"
