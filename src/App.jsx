@@ -787,7 +787,7 @@ Analysiere Trend und gib Empfehlungen.`);
 }
 
 // ── WEEK TAB ──────────────────────────────────────────────────────────────────
-function WeekTab({ goals }) {
+function AnalyticsTab({ goals }) {
   const [weekData, setWeekData] = useState([]);
 
   useEffect(() => {
