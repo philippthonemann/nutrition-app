@@ -995,6 +995,61 @@ Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze"
 }
 
 
+// ── MEAL PLAN CARD ───────────────────────────────────────────────────────────
+function MealPlanCard({ meal }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4 }}>
+      <div onClick={() => setExpanded(!expanded)} style={{ cursor: "pointer" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2, letterSpacing: 1 }}>{meal.type?.toUpperCase()}</div>
+            <div style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>
+              {meal.recipe}
+              {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}>✦ Neu</span>}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", marginLeft: 10 }}>
+            <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{meal.calories}</div>
+            <div style={{ fontSize: 10, color: C.muted }}>kcal</div>
+          </div>
+          <span style={{ color: C.muted, fontSize: 14, marginLeft: 8, marginTop: 14 }}>{expanded ? "▲" : "▼"}</span>
+        </div>
+        {/* Macro row */}
+        <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+          {[["P", meal.protein+"g", C.protein], ["C", meal.carbs+"g", C.carbs], ["F", meal.fat+"g", C.fat]].map(([l,v,c]) => (
+            <span key={l} style={{ fontSize: 11, color: c }}>{l}: {v}</span>
+          ))}
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 12, animation: "fadeIn .2s ease" }}>
+          {meal.ingredients?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUTATEN</div>
+              {meal.ingredients.map((ing, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.mutedLight, padding: "3px 0", borderBottom: `1px solid ${C.border}` }}>· {ing}</div>
+              ))}
+            </div>
+          )}
+          {meal.steps?.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUBEREITUNG</div>
+              {meal.steps.map((step, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 6, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>{i+1}</span>
+                  <span style={{ fontSize: 12, color: C.mutedLight, lineHeight: 1.5 }}>{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── PLAN TAB ─────────────────────────────────────────────────────────────────
 function PlanTab({ goals }) {
   const [filters, setFilters] = useState({ minRating: 0, maxCookTime: 999, maxCost: 999, tags: [] });
@@ -1028,8 +1083,8 @@ function PlanTab({ goals }) {
     );
 
     const sys = `Du bist Ernährungsberater. Erstelle einen 7-Tage Mahlzeitenplan.
-Antworte NUR mit JSON:
-{"days":[{"day":"Montag","meals":[{"type":"Frühstück","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true/false},{"type":"Mittagessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true/false},{"type":"Abendessen","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true/false}],"totalCalories":X,"totalProtein":X},...]}`;
+Antworte NUR mit JSON, kein Markdown:
+{"days":[{"day":"Montag","meals":[{"type":"Frühstück","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"fiber":X,"isNew":true,"ingredients":["200g Haferflocken","1 Banane"],"steps":["Schritt 1","Schritt 2"]},...],"totalCalories":X,"totalProtein":X,"totalCarbs":X,"totalFat":X},...]}`;
 
     const notionPart = filtered.length > 0 && planMode !== "inspiration"
       ? `Vorhandene Rezepte (bevorzuge höher bewertete, markiere isNew:false): ${JSON.stringify(filtered.slice(0,20).map(r=>({name:r.name,cal:r.calories,p:r.protein,c:r.carbs,f:r.fat,rating:r.rating,tags:r.tags})))}`
@@ -1167,20 +1222,17 @@ Erstelle einen abwechslungsreichen 7-Tage Plan. Kein Gericht mehr als 2x. Makros
                 </div>
               </div>
               {day.meals?.map((meal, j) => (
-                <div key={j} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${C.border}` }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2 }}>{meal.type}</div>
-                    <div style={{ fontSize: 13, color: C.text }}>
-                    {meal.recipe}
-                    {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}>✦ Neu</span>}
-                  </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16 }}>{meal.calories}</div>
-                    <div style={{ fontSize: 10, color: C.muted }}>P{meal.protein}g</div>
-                  </div>
-                </div>
+                <MealPlanCard key={j} meal={meal} goals={goals}/>
               ))}
+              {/* Day totals */}
+              <div style={{ display: "flex", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+                {[["kcal", day.totalCalories, goals.calories, C.accent], ["P", day.totalProtein+"g", goals.protein, C.protein], ["C", day.totalCarbs+"g", goals.carbs, C.carbs], ["F", day.totalFat+"g", goals.fat, C.fat]].map(([l,v,g,c]) => (
+                  <div key={l} style={{ flex: 1, textAlign: "center", background: C.surface, borderRadius: 8, padding: "6px 0" }}>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: c }}>{v}</div>
+                    <div style={{ fontSize: 9, color: C.muted }}>{l}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
 
