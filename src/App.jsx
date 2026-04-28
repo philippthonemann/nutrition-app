@@ -38,8 +38,10 @@ async function loadNotionRecipes() {
 }
 
 // Supabase helpers
-const today = () => {
-  const d = new Date();
+const today = () => localDate(new Date());
+
+const localDate = (date) => {
+  const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
 
@@ -93,7 +95,7 @@ async function loadMonthMeals(year, month) {
 async function loadWeekMeals() {
   const start = new Date();
   start.setDate(start.getDate() - 6);
-  const { data } = await supabase.from("meals").select("date, calories").gte("date", start.toISOString().split("T")[0]);
+  const { data } = await supabase.from("meals").select("date, calories").gte("date", localDate(start));
   return data || [];
 }
 
@@ -181,7 +183,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
   const changeDate = (days) => {
     const d = new Date(selectedDate + "T00:00:00");
     d.setDate(d.getDate() + days);
-    const newDate = d.toISOString().split("T")[0];
+    const newDate = localDate(d);
     if (newDate <= today()) setSelectedDate(newDate);
   };
 
@@ -652,7 +654,7 @@ function AnalyticsTab({ goals }) {
       setWeekData(days.map((day,i) => {
         const date = new Date();
         date.setDate(date.getDate()-(todayIdx-i));
-        const dateStr = date.toISOString().split("T")[0];
+        const dateStr = localDate(date);
         const dayMeals = week.filter(m => m.date===dateStr);
         return { day, dateStr, cal: dayMeals.reduce((a,m)=>a+(m.calories||0),0), protein: dayMeals.reduce((a,m)=>a+(m.protein||0),0), today: i===todayIdx };
       }));
@@ -680,7 +682,7 @@ function AnalyticsTab({ goals }) {
   let streak = 0;
   const checkDate = new Date();
   for (let i=0; i<365; i++) {
-    const dateStr = checkDate.toISOString().split("T")[0];
+    const dateStr = localDate(checkDate);
     if (dailyTotals[dateStr]) { streak++; checkDate.setDate(checkDate.getDate()-1); } else break;
   }
 
@@ -897,7 +899,7 @@ function AnalyticsTab({ goals }) {
                   ))}
                 </div>
                 <button onClick={async () => {
-                  const entry = { date: new Date().toISOString().split("T")[0], ...Object.fromEntries(Object.entries(measurementForm).map(([k,v])=>[k,parseFloat(v)||0])) };
+                  const entry = { date: localDate(new Date()), ...Object.fromEntries(Object.entries(measurementForm).map(([k,v])=>[k,parseFloat(v)||0])) };
                   const saved = await saveBodyMeasurement(entry);
                   if (saved) setBodyHistory(p => [...p, saved]);
                   setMeasurementForm({ weight:"", waist:"", chest:"", hip:"" });
@@ -1062,7 +1064,7 @@ function PlanTab({ goals, logged }) {
   const [recipes, setRecipes] = useState([]);
   const [planDate, setPlanDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate()+1);
-    return d.toISOString().split("T")[0];
+    return localDate(d);
   });
   const [tags, setTags] = useState([]);
   const ALL_TAGS = ["High Protein","Vegan","Vegetarisch","Meal Prep","Schnell","Günstig"];
