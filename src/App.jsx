@@ -1574,7 +1574,7 @@ export default function App() {
   const navItems = [
     { key: "today", icon: "◉", label: "Heute" },
     { key: "scan", icon: "⬡", label: "Scan" },
-    { key: "plan", icon: "📅", label: "Plan" },
+    { key: "coach", icon: "📅", label: "Coach" },
     { key: "week", icon: "▦", label: "Woche" },
   ];
 
