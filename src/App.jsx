@@ -652,6 +652,82 @@ function WeightChart({ history, metric, color, unit }) {
   );
 }
 
+function IFTracker() {
+  const [ifData, setIfData] = useState(null);
+  const [ifGoal, setIfGoal] = useState(16);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    loadRecentMealsWithTime().then(meals => {
+      if (meals.length === 0) return;
+      const lastMeal = meals[0];
+      const lastMealTime = lastMeal.meal_time ? new Date(lastMeal.meal_time) : null;
+      const sortedMeals = [...meals].sort((a,b) => new Date(a.meal_time||a.date) - new Date(b.meal_time||b.date));
+      const windows = [];
+      for (let i = 1; i < sortedMeals.length; i++) {
+        const prev = new Date(sortedMeals[i-1].meal_time || sortedMeals[i-1].date);
+        const curr = new Date(sortedMeals[i].meal_time || sortedMeals[i].date);
+        const diffH = (curr - prev) / 3600000;
+        if (diffH > 4 && diffH < 24) windows.push(diffH);
+      }
+      const avgFasting = windows.length > 0 ? windows.reduce((a,b)=>a+b,0)/windows.length : 0;
+      const currentFasting = lastMealTime ? (now - lastMealTime) / 3600000 : 0;
+      setIfData({ lastMealTime, avgFasting, currentFasting, windows });
+    });
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!ifData) return null;
+  const { lastMealTime, avgFasting, currentFasting, windows } = ifData;
+  const pct = Math.min((currentFasting / ifGoal) * 100, 100);
+  const goalReached = currentFasting >= ifGoal;
+  const hoursLeft = Math.max(0, ifGoal - currentFasting);
+  const formatDuration = (h) => `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`;
+
+  return (
+    <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${goalReached ? C.green : C.border}`, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>
+            Intermittent <span style={{ color: C.accent }}>Fasting</span>
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ziel: {ifGoal}h Fasten</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={() => setIfGoal(p => Math.max(12, p-1))} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, width: 28, height: 28, borderRadius: 6, cursor: "pointer", fontSize: 16 }}>−</button>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.accent, minWidth: 36, textAlign: "center" }}>{ifGoal}h</span>
+          <button onClick={() => setIfGoal(p => Math.min(24, p+1))} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, width: 28, height: 28, borderRadius: 6, cursor: "pointer", fontSize: 16 }}>+</button>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <Ring value={currentFasting} goal={ifGoal} color={goalReached ? C.green : C.accent} size={90} sw={8}/>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: goalReached ? C.green : C.accent, lineHeight: 1 }}>{Math.floor(currentFasting)}h</div>
+            <div style={{ fontSize: 9, color: C.muted }}>{Math.round((currentFasting % 1) * 60)}m</div>
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>{goalReached ? "🎯 Ziel erreicht!" : `Noch ${formatDuration(hoursLeft)}`}</div>
+          {lastMealTime && <div style={{ fontSize: 12, color: C.muted }}>Letzte Mahlzeit: {lastMealTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</div>}
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ø Fastenzeit: {avgFasting > 0 ? formatDuration(avgFasting) : "–"}</div>
+        </div>
+      </div>
+      <div style={{ height: 6, background: C.border, borderRadius: 3 }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: goalReached ? C.green : C.accent, borderRadius: 3, transition: "width .5s ease" }}/>
+      </div>
+      {windows.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {windows.slice(-7).map((w, i) => (
+            <div key={i} style={{ background: w >= ifGoal ? `${C.green}20` : C.surface, border: `1px solid ${w >= ifGoal ? C.green : C.border}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, color: w >= ifGoal ? C.green : C.muted, fontFamily: "'DM Mono',monospace" }}>{Math.round(w)}h</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnalyticsTab({ goals }) {
   const now = new Date();
   const [subTab, setSubTab] = useState("nutrition");
