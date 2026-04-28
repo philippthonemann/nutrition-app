@@ -1210,7 +1210,6 @@ Antworte auf Deutsch, direkt und konkret. Maximal 3-4 Sätze. Keine langen Liste
   };
 
   // Keep rest of PlanTab state
-  const [mode, setMode] = useState(null);
   const [mode, setMode] = useState(null); // "inspo"|"fillup"
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
