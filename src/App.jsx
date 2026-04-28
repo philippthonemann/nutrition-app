@@ -1195,18 +1195,9 @@ PHILIPPS PROFIL:
 - Mag mediterrane Küche, Hühnchen, Pasta
 - Tagesziele: ${goals.calories} kcal, ${goals.protein}g Protein, ${goals.carbs}g Carbs, ${goals.fat}g Fett
 
-HEUTE GEGESSEN:
-${logged.map(m => `- ${m.name}: ${m.calories} kcal, P${m.protein}g`).join('
-') || 'Noch nichts'}
-Gesamt heute: ${totals.calories} kcal, ${totals.protein}g Protein
-
-KÖRPERDATEN (letzte Messungen):
-${bodyData.slice(-3).map(b => `- ${b.date}: ${b.weight}kg, Bauch ${b.waist}cm`).join('
-') || 'Keine Daten'}
-
-LETZTE 7 TAGE MAHLZEITEN:
-${recentMeals.slice(0,20).map(m => `- ${m.date}: ${m.name}`).join('
-')}
+HEUTE GEGESSEN: ${logged.map(m => m.name + ': ' + m.calories + ' kcal, P' + m.protein + 'g').join(', ') || 'Noch nichts'}. Gesamt: ${totals.calories} kcal, ${totals.protein}g Protein.
+KÖRPERDATEN: ${bodyData.slice(-3).map(b => b.date + ': ' + b.weight + 'kg, Bauch ' + b.waist + 'cm').join(' | ') || 'Keine Daten'}
+LETZTE 7 TAGE: ${recentMeals.slice(0,15).map(m => m.date + ': ' + m.name).join(' | ')}
 
 Antworte auf Deutsch, direkt und konkret. Maximal 3-4 Sätze. Keine langen Listen.`;
 
