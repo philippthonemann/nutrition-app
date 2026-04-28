@@ -95,7 +95,7 @@ async function loadMonthMeals(year, month) {
 async function loadWeekMeals() {
   const start = new Date();
   start.setDate(start.getDate() - 6);
-  const { data } = await supabase.from("meals").select("date, calories").gte("date", localDate(start));
+  const { data } = await supabase.from("meals").select("date, calories, protein, carbs, fat").gte("date", localDate(start));
   return data || [];
 }
 
