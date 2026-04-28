@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="115" fill="#080808"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#c8f135" stroke-width="20"/>
+  <text x="256" y="310" font-family="Arial Black, sans-serif" font-size="180" font-weight="900" fill="#c8f135" text-anchor="middle">PN</text>
+</svg>
