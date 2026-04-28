@@ -1157,7 +1157,69 @@ function MealPlanCard({ meal }) {
 
 // ── PLAN TAB ─────────────────────────────────────────────────────────────────
 
-function PlanTab({ goals, logged }) {
+function CoachTab({ goals, logged }) {
+  const [chatMessages, setChatMessages] = useState([
+    { role: "assistant", text: "Hey Philipp! Ich kenne deine Ernährungsdaten, Körpermessungen und Ziele. Was möchtest du wissen?" }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = React.useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  const sendMessage = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages(p => [...p, { role: "user", text: userMsg }]);
+    setChatLoading(true);
+
+    try {
+      // Load context data
+      const [recentMeals, bodyData] = await Promise.all([
+        loadRecentMealsWithTime(),
+        loadBodyMeasurements(),
+      ]);
+
+      const totals = logged.reduce((a,m) => ({
+        calories: a.calories+(m.calories||0), protein: a.protein+(m.protein||0),
+        carbs: a.carbs+(m.carbs||0), fat: a.fat+(m.fat||0),
+      }), { calories:0, protein:0, carbs:0, fat:0 });
+
+      const sys = `Du bist Philipps persönlicher KI-Ernährungs- und Fitness-Coach. Du kennst seine Daten und gibst konkrete, personalisierte Empfehlungen.
+
+PHILIPPS PROFIL:
+- Lebt in Karlsruhe, macht Ausdauersport
+- Mag mediterrane Küche, Hühnchen, Pasta
+- Tagesziele: ${goals.calories} kcal, ${goals.protein}g Protein, ${goals.carbs}g Carbs, ${goals.fat}g Fett
+
+HEUTE GEGESSEN:
+${logged.map(m => `- ${m.name}: ${m.calories} kcal, P${m.protein}g`).join('
+') || 'Noch nichts'}
+Gesamt heute: ${totals.calories} kcal, ${totals.protein}g Protein
+
+KÖRPERDATEN (letzte Messungen):
+${bodyData.slice(-3).map(b => `- ${b.date}: ${b.weight}kg, Bauch ${b.waist}cm`).join('
+') || 'Keine Daten'}
+
+LETZTE 7 TAGE MAHLZEITEN:
+${recentMeals.slice(0,20).map(m => `- ${m.date}: ${m.name}`).join('
+')}
+
+Antworte auf Deutsch, direkt und konkret. Maximal 3-4 Sätze. Keine langen Listen.`;
+
+      const raw = await callClaude(sys, userMsg);
+      setChatMessages(p => [...p, { role: "assistant", text: raw }]);
+    } catch(e) {
+      setChatMessages(p => [...p, { role: "assistant", text: "Fehler beim Laden — bitte nochmal versuchen." }]);
+    }
+    setChatLoading(false);
+  };
+
+  // Keep rest of PlanTab state
+  const [mode, setMode] = useState(null);
   const [mode, setMode] = useState(null); // "inspo"|"fillup"
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1237,7 +1299,44 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
         Meal<span style={{ color: C.accent }}>-Plan</span>
       </div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Was soll ich essen?</div>
+      <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Dein persönlicher KI-Coach</div>
+
+      {/* Chat */}
+      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 16, overflow: "hidden" }}>
+        <div style={{ padding: "14px 16px", maxHeight: 280, overflowY: "auto" }}>
+          {chatMessages.map((msg, i) => (
+            <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{
+                maxWidth: "85%", padding: "10px 14px",
+                borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                background: msg.role === "user" ? C.accent : C.surface,
+                color: msg.role === "user" ? "#000" : C.text,
+                fontSize: 13, lineHeight: 1.5,
+              }}>{msg.text}</div>
+            </div>
+          ))}
+          {chatLoading && (
+            <div style={{ display: "flex", gap: 4, padding: "8px 14px" }}>
+              {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted }}/>)}
+            </div>
+          )}
+          <div ref={chatEndRef}/>
+        </div>
+        <div style={{ borderTop: `1px solid ${C.border}`, display: "flex" }}>
+          <input
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && sendMessage()}
+            placeholder="Frag deinen Coach…"
+            style={{ flex: 1, background: "none", border: "none", padding: "12px 16px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 14, outline: "none" }}
+          />
+          <button onClick={sendMessage} disabled={chatLoading || !chatInput.trim()} style={{
+            background: chatInput.trim() ? C.accent : "none", border: "none",
+            color: chatInput.trim() ? "#000" : C.muted, padding: "12px 16px",
+            cursor: chatInput.trim() ? "pointer" : "default", fontSize: 18, transition: "all .15s ease",
+          }}>↑</button>
+        </div>
+      </div>
 
       {/* Mode cards */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
@@ -1499,7 +1598,7 @@ export default function App() {
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
-        {tab === "plan" && <PlanTab goals={goals} logged={logged}/>}
+        {tab === "plan" && <CoachTab goals={goals} logged={logged}/>}
         {tab === "week" && <AnalyticsTab goals={goals}/>}
         {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
@@ -1513,7 +1612,7 @@ export default function App() {
           </button>
           <button onClick={() => setTab("plan")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "plan" ? C.accent : C.muted }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7z"/></svg>
-            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Plan</span>
+            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Coach</span>
           </button>
           <button onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
