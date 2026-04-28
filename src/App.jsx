@@ -1201,7 +1201,19 @@ LETZTE 7 TAGE: ${recentMeals.slice(0,15).map(m => m.date + ': ' + m.name).join('
 
 Antworte auf Deutsch, direkt und konkret. Maximal 3-4 Sätze. Keine langen Listen.`;
 
-      const raw = await callClaude(sys, userMsg);
+      // Build conversation history for context
+      const messages = chatMessages
+        .filter(m => m.role !== "assistant" || chatMessages.indexOf(m) > 0)
+        .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+      messages.push({ role: "user", content: userMsg });
+
+      const res = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1000, system: sys, messages })
+      });
+      const data = await res.json();
+      const raw = data.content?.find(b => b.type === "text")?.text || "";
       setChatMessages(p => [...p, { role: "assistant", text: raw }]);
     } catch(e) {
       setChatMessages(p => [...p, { role: "assistant", text: "Fehler beim Laden — bitte nochmal versuchen." }]);
