@@ -1598,7 +1598,7 @@ export default function App() {
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
-        {tab === "plan" && <CoachTab goals={goals} logged={logged}/>}
+        {tab === "coach" && <CoachTab goals={goals} logged={logged}/>}
         {tab === "week" && <AnalyticsTab goals={goals}/>}
         {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
@@ -1610,7 +1610,7 @@ export default function App() {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Heute</span>
           </button>
-          <button onClick={() => setTab("plan")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "plan" ? C.accent : C.muted }}>
+          <button onClick={() => setTab("coach")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "plan" ? C.accent : C.muted }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7z"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Coach</span>
           </button>
