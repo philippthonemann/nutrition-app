@@ -877,6 +877,7 @@ function AnalyticsTab({ goals }) {
       {/* ── NUTRITION SUB-TAB ── */}
       {subTab === "nutrition" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
+          {analyticsError && <p role="alert" className="q-inline-message">{analyticsError}</p>}
           <div className="q-basis-line"><span>{loggedDays} vollständige Tage · {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} unvollständig</span><InfoTip label="Berechnung der Analytics">Durchschnitte enthalten nur vollständige Tage. Automatisch gilt mindestens ⅔ des damaligen Kalorienziels; manuelle Änderungen haben Vorrang. Für alte Tage ohne Zielhistorie gilt das früheste bekannte Ziel. Im Kalender kannst du Tagesstatus korrigieren.</InfoTip></div>
           {loggedDays === 0 && <div className="q-empty-analytics">Noch keine Durchschnittswerte <InfoTip label="Warum fehlen die Durchschnittswerte?">Deine Mahlzeiten sind geladen, aber kein Tag dieses Monats ist als vollständig eingestuft. Tippe einen Tag im Kalender an, falls du das korrigieren möchtest.</InfoTip></div>}
           {/* KPI Cards */}
