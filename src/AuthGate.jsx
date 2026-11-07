@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { SUPABASE_URL, SUPABASE_KEY } from '../lib/supabase-config.js';
 
 const panel = { background: '#111', color: '#f0f0f0', border: '1px solid #333', borderRadius: 12, padding: 24, width: '100%', maxWidth: 390 };
 const button = { padding: '12px 16px', borderRadius: 8, border: 0, background: '#c8f135', color: '#080808', cursor: 'pointer' };
@@ -13,33 +14,41 @@ export default function AuthGate({ children }) {
   useEffect(() => {
     let active = true;
     let generation = 0;
-    const check = async session => {
-      const current = ++generation;
+    const check = async (session, current) => {
+      const apply = next => {
+        if (active && current === generation) setState(next);
+      };
       if (!session) {
-        if (active) setState({ loading: false, user: null, error: '' });
+        apply({ loading: false, user: null, error: '' });
         return;
       }
-      const { data: { user }, error } = await supabase.auth.getUser();
-      const result = user && !error && user.email_confirmed_at && !user.is_anonymous
-        ? await supabase.from('app_owner').select('user_id').eq('user_id', user.id).maybeSingle()
-        : { data: null, error: error || new Error('Unbestätigtes Konto') };
-      if (!active || current !== generation) return;
-      if (result.error || !result.data) {
-        setState({ loading: false, user: null, error: 'Dieses Konto hat keinen Zugriff oder die Prüfung ist derzeit nicht möglich.' });
-        return;
+      try {
+        // Use the same immutable token for both checks. A simultaneous auth event
+        // must not swap credentials between user validation and the RLS request.
+        const token = session.access_token;
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user?.email_confirmed_at || user.is_anonymous) throw new Error('session');
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/app_owner?select=user_id&user_id=eq.${encodeURIComponent(user.id)}`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` },
+          cache: 'no-store', signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) throw new Error('membership');
+        const owners = await response.json();
+        if (!Array.isArray(owners) || !owners.some(owner => owner.user_id === user.id)) throw new Error('membership');
+        apply({ loading: false, user, error: '' });
+      } catch {
+        apply({ loading: false, user: null, error: 'Die Sitzung konnte nicht bestätigt werden. Lade die Seite erneut. Falls der Login-Link bereits verwendet wurde, benötigst du einen neuen Link.' });
       }
-      setState({ loading: false, user, error: '' });
     };
-    // Defer API calls outside the auth callback to avoid the auth client's lock.
+    // INITIAL_SESSION is emitted after the SDK finishes processing the mail URL.
+    // Do not race it with an additional getSession() initialization.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) setState(previous => ({ ...previous, user: null, loading: Boolean(session) }));
-      setTimeout(() => { if (active) void check(session); }, 0);
+      const current = ++generation;
+      if (active) setState(previous => ({ ...previous, loading: Boolean(session), user: session ? previous.user : null }));
+      setTimeout(() => { if (active && current === generation) void check(session, current); }, 0);
     });
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
-      if (error) setState({ loading: false, user: null, error: 'Sitzung konnte nicht geladen werden.' });
-      else void check(data.session);
-    });
+    const linkError = new URLSearchParams(window.location.hash.slice(1)).get('error_code');
+    if (linkError) setMessage('Dieser Login-Link ist abgelaufen oder wurde bereits verwendet. Fordere einen neuen Link an und öffne ihn einmal auf diesem Gerät.');
     return () => { active = false; generation++; subscription.unsubscribe(); };
   }, []);
 
@@ -52,7 +61,10 @@ export default function AuthGate({ children }) {
         email: email.trim(),
         options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
       });
-      setMessage(error ? 'Anmeldung nicht möglich. Bitte prüfe deine E-Mail und versuche es später erneut.' : 'Falls dein Konto freigeschaltet ist, erhältst du einen Login-Link per E-Mail.');
+      setMessage(error?.status === 429
+        ? 'Das E-Mail-Versandlimit ist erreicht. Bitte warte etwa eine Stunde, bevor du einen neuen Link anforderst.'
+        : error ? 'Der Login-Link konnte nicht gesendet werden. Bitte versuche es später erneut.'
+        : 'Falls dein Konto freigeschaltet ist, erhältst du einen Login-Link. Öffne nur den neuesten Link einmal auf diesem Gerät.');
     } catch {
       setMessage('Anmeldung derzeit nicht möglich. Bitte versuche es erneut.');
     } finally { setBusy(false); }
