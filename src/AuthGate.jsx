@@ -8,6 +8,12 @@ const button = { padding: '12px 16px', borderRadius: 8, border: 0, background: '
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ loading: true, user: null, error: '' });
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState('password');
+  const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -57,6 +63,12 @@ export default function AuthGate({ children }) {
     setBusy(true);
     setMessage('');
     try {
+      if (mode === 'password') {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        setPassword('');
+        if (error) setMessage(error.status === 429 ? 'Zu viele Anmeldeversuche. Bitte versuche es später erneut.' : 'Anmeldung fehlgeschlagen. Prüfe E-Mail und Passwort. Falls noch kein Passwort gesetzt ist, lege es zuerst in deiner angemeldeten Mac-Sitzung fest.');
+        return;
+      }
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
@@ -70,13 +82,43 @@ export default function AuthGate({ children }) {
     } finally { setBusy(false); }
   }
 
+  async function savePassword(event) {
+    event.preventDefault();
+    if (newPassword !== confirmation) {
+      setPasswordMessage('Die Passwörter stimmen nicht überein.');
+      return;
+    }
+    setBusy(true);
+    setPasswordMessage('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      setPasswordMessage(error ? 'Passwort konnte nicht gespeichert werden. Nutze mindestens 12 Zeichen. Falls Supabase eine erneute Anmeldung verlangt, ist zuerst ein frischer Login nötig.' : 'Passwort gespeichert. Du kannst dich jetzt auf deinem iPhone mit E-Mail und Passwort anmelden.');
+      if (!error) { setNewPassword(''); setConfirmation(''); }
+    } catch {
+      setPasswordMessage('Passwort konnte derzeit nicht gespeichert werden. Bitte versuche es erneut.');
+    } finally { setBusy(false); }
+  }
+
   if (state.user) return <div key={state.user.id}>
     <div style={{ background: '#080808', padding: 12, textAlign: 'right' }}>
+      <button style={{ ...button, marginRight: 8 }} onClick={() => { setShowPasswordSetup(!showPasswordSetup); setPasswordMessage(''); }}>Passwort festlegen</button>
       <button style={button} onClick={async () => {
         setState({ loading: false, user: null, error: '' });
         await supabase.auth.signOut({ scope: 'local' });
       }}>Abmelden</button>
     </div>
+    {showPasswordSetup && <section style={{ ...panel, boxSizing: 'border-box', margin: '16px auto', fontFamily: 'sans-serif' }}>
+      <h2>Passwort festlegen</h2>
+      <p>Damit meldest du dich auf weiteren Geräten ohne Login-Mail an.</p>
+      <form onSubmit={savePassword} style={{ display: 'grid', gap: 12 }}>
+        <label htmlFor="new-password">Neues Passwort (mindestens 12 Zeichen)</label>
+        <input id="new-password" type="password" autoComplete="new-password" minLength={12} required value={newPassword} onChange={event => setNewPassword(event.target.value)} style={{ padding: 12, fontSize: 16 }} />
+        <label htmlFor="confirm-password">Passwort wiederholen</label>
+        <input id="confirm-password" type="password" autoComplete="new-password" minLength={12} required value={confirmation} onChange={event => setConfirmation(event.target.value)} style={{ padding: 12, fontSize: 16 }} />
+        <button style={button} disabled={busy}>{busy ? 'Wird gespeichert…' : 'Passwort speichern'}</button>
+      </form>
+      <p role="status">{passwordMessage}</p>
+    </section>}
     {children}
   </div>;
 
@@ -89,7 +131,12 @@ export default function AuthGate({ children }) {
         <form onSubmit={login} style={{ display: 'grid', gap: 16 }}>
           <label htmlFor="login-email">E-Mail-Adresse</label>
           <input id="login-email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} style={{ padding: 12, fontSize: 16 }} />
-          <button style={button} disabled={busy}>{busy ? 'Wird gesendet…' : 'Login-Link anfordern'}</button>
+          {mode === 'password' && <>
+            <label htmlFor="login-password">Passwort</label>
+            <input id="login-password" type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} style={{ padding: 12, fontSize: 16 }} />
+          </>}
+          <button style={button} disabled={busy}>{busy ? 'Bitte warten…' : mode === 'password' ? 'Anmelden' : 'Login-Link anfordern'}</button>
+          <button type="button" disabled={busy} style={{ ...button, background: '#333', color: '#eee' }} onClick={() => { setMode(mode === 'password' ? 'link' : 'password'); setPassword(''); setMessage(''); }}>{mode === 'password' ? 'Stattdessen per E-Mail-Link anmelden' : 'Mit Passwort anmelden'}</button>
         </form>
         <p role="status">{message}</p>
       </>}
