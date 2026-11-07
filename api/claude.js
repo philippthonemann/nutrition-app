@@ -1,10 +1,9 @@
+import { requireOwner } from '../lib/require-owner.js';
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
   
-  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
+  if (!await requireOwner(req, res)) return;
 
   try {
     let body = req.body;
@@ -19,7 +18,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.VITE_ANTHROPIC_API_KEY,
+        'x-api-key': (process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY),
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(body),
