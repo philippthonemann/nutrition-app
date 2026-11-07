@@ -3,13 +3,15 @@ import { supabase } from "./supabase";
 import { authFetch } from "./authFetch";
 import { SCAN_PROMPT, normalizeScan, resizeComponent, prepareFoodImage } from "./scan.js";
 import "./theme.css";
+import Icon from "./Icon.jsx";
+import { ProgressGauge, TargetScale } from "./ProgressGauge.jsx";
 
 const C = {
   bg: "#f4f5f4", surface: "#eef0ef", card: "#ffffff", border: "#dce2e0",
   accent: "#293e40", accentDim: "#526a6b",
-  protein: "#b76445", carbs: "#4c7c95", fat: "#9b7933",
+  protein: "#6c8992", carbs: "#7d979f", fat: "#8c9b9a",
   text: "#273437", muted: "#647174", mutedLight: "#536367",
-  green: "#4ade80", red: "#f87171",
+  green: "#497660", red: "#b35b50",
 };
 
 const DEFAULT_GOALS = {
@@ -18,16 +20,16 @@ const DEFAULT_GOALS = {
 };
 
 const GOAL_META = [
-  { key: "calories", label: "Kalorien", unit: "kcal", color: "#293e40", icon: "🔥" },
-  { key: "protein",  label: "Protein",  unit: "g",    color: "#ff6b35", icon: "💪" },
-  { key: "carbs",    label: "Carbs",    unit: "g",    color: "#4c7c95", icon: "🌾" },
-  { key: "fat",      label: "Fett",     unit: "g",    color: "#9b7933", icon: "🥑" },
-  { key: "fiber",    label: "Ballaststoffe", unit: "g", color: "#a78bfa", icon: "🥦" },
-  { key: "sugar",    label: "Zucker",   unit: "g",    color: "#f472b6", icon: "🍬" },
-  { key: "sodium",   label: "Natrium",  unit: "mg",   color: "#94a3b8", icon: "🧂" },
-  { key: "water",    label: "Wasser",   unit: "ml",   color: "#38bdf8", icon: "💧" },
-  { key: "caffeine", label: "Koffein",  unit: "mg",   color: "#d97706", icon: "☕" },
-  { key: "alcohol",  label: "Alkohol",  unit: "g",    color: "#f87171", icon: "🍺" },
+  { key: "calories", label: "Kalorien", unit: "kcal", color: "#293e40", icon: "flame" },
+  { key: "protein",  label: "Protein",  unit: "g",    color: "#718e98", icon: "strength" },
+  { key: "carbs",    label: "Carbs",    unit: "g",    color: "#4c7c95", icon: "grain" },
+  { key: "fat",      label: "Fett",     unit: "g",    color: "#9b7933", icon: "drop" },
+  { key: "fiber",    label: "Ballaststoffe", unit: "g", color: "#8b9fa7", icon: "leaf" },
+  { key: "sugar",    label: "Zucker",   unit: "g",    color: "#8c9aa3", icon: "cube" },
+  { key: "sodium",   label: "Natrium",  unit: "mg",   color: "#94a3b8", icon: "cube" },
+  { key: "water",    label: "Wasser",   unit: "ml",   color: "#7b9ba9", icon: "drop" },
+  { key: "caffeine", label: "Koffein",  unit: "mg",   color: "#8b8477", icon: "coffee" },
+  { key: "alcohol",  label: "Alkohol",  unit: "g",    color: "#ad7971", icon: "glass" },
 ];
 
 const SAMPLE_RECIPES = [];
@@ -116,9 +118,9 @@ async function loadWeekMeals() {
 function Ring({ value, goal, color, size = 80, sw = 7 }) {
   const r = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
-  const dash = Math.min(value / goal, 1) * circ;
+  const dash = Math.max(0, Math.min(goal > 0 ? value / goal : 0, 1)) * circ;
   return (
-    <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+    <svg aria-label={`${Math.round(goal > 0 ? value / goal * 100 : 0)} Prozent erreicht`} role="img" className="q-progress-ring" width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth={sw}/>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={sw}
         strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
@@ -180,7 +182,6 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
     calories: a.calories + (m.calories || 0), protein: a.protein + (m.protein || 0),
     carbs: a.carbs + (m.carbs || 0), fat: a.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const calPct = Math.min((totals.calories / goals.calories) * 100, 100);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
 
@@ -217,7 +218,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
       {/* Date Navigator */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, background: C.card, borderRadius: 14, padding: "10px 16px", border: `1px solid ${C.border}` }}>
+      <div className="q-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, background: C.card, borderRadius: 14, padding: "10px 16px", border: `1px solid ${C.border}` }}>
         <button onClick={() => changeDate(-1)} style={{ background: "none", border: "none", color: C.mutedLight, cursor: "pointer", fontSize: 20, padding: "0 8px" }}>‹</button>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: isToday ? C.accent : C.text, letterSpacing: 1 }}>{formatDate(selectedDate)}</div>
@@ -225,53 +226,21 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
         </div>
         <button onClick={() => changeDate(1)} disabled={isToday} style={{ background: "none", border: "none", color: isToday ? C.border : C.mutedLight, cursor: isToday ? "default" : "pointer", fontSize: 20, padding: "0 8px" }}>›</button>
       </div>
-      {/* Calorie hero */}
-      <div style={{ background: C.card, borderRadius: 20, padding: 20, marginBottom: 14, border: `1px solid ${C.border}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <Label>Kalorien heute</Label>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 54, lineHeight: 1, color: C.text }}>
-              {totals.calories}<span style={{ fontSize: 18, color: C.muted, marginLeft: 4 }}>/ {goals.calories}</span>
-            </div>
-            <div style={{ color: totals.calories > goals.calories ? C.red : C.accent, fontSize: 13, marginTop: 4 }}>
-              {totals.calories > goals.calories 
-                ? `+${totals.calories - goals.calories} kcal über Ziel ⚠️`
-                : goals.calories - totals.calories > 0 
-                  ? `${goals.calories - totals.calories} kcal verbleibend` 
-                  : "Ziel erreicht 🎯"}
-            </div>
-          </div>
-          <div style={{ position: "relative" }}>
-            <Ring value={totals.calories} goal={goals.calories} color={totals.calories > goals.calories ? C.red : C.accent} size={76} sw={7}/>
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: C.text }}>{Math.round(calPct)}%</div>
-          </div>
+      {/* Nested instrument cards inspired by the reference's score panels. */}
+      <section className="q-card q-energy-card" aria-label="Kalorienübersicht">
+        <div className="q-energy-inset">
+          <div className="q-energy-heading"><span><Icon name="flame" size={16}/> Tagesenergie</span><span className="q-status">{totals.calories > goals.calories ? "Über dem Ziel" : totals.calories === goals.calories ? "Ziel erreicht" : "Im Verlauf"}</span></div>
+          <div className="q-energy-reading"><span>{Math.round(totals.calories).toLocaleString("de-DE")}</span><small>kcal</small></div>
+          <div className="q-energy-sub">{totals.calories > goals.calories ? `${Math.round(totals.calories - goals.calories)} kcal über deinem Tagesziel` : `${Math.round(goals.calories - totals.calories)} kcal bis zum Tagesziel`}</div>
         </div>
-        <div style={{ marginTop: 14, height: 3, background: C.border, borderRadius: 2 }}>
-          <div style={{ height: "100%", width: `${calPct}%`, background: C.accent, borderRadius: 2, transition: "width .6s ease" }}/>
-        </div>
-      </div>
-
-      {/* Macros row */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-        {[["Protein", totals.protein, goals.protein, C.protein], ["Carbs", totals.carbs, goals.carbs, C.carbs], ["Fett", totals.fat, goals.fat, C.fat]].map(([l, v, g, col]) => (
-          <div key={l} style={{ flex: 1, background: C.card, borderRadius: 14, padding: "14px 12px", border: `1px solid ${C.border}` }}>
-            <Label>{l}</Label>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, color: C.text }}>
-                {v}<span style={{ fontSize: 12, color: C.muted }}>g</span>
-              </div>
-              <Ring value={v} goal={g} color={col} size={36} sw={4}/>
-            </div>
-            <div style={{ height: 3, background: C.border, borderRadius: 2, marginTop: 8 }}>
-              <div style={{ height: "100%", width: `${Math.min((v/g)*100,100)}%`, background: v > g ? C.red : col, borderRadius: 2 }}/>
-            </div>
-          </div>
-        ))}
-      </div>
+        <TargetScale value={totals.calories} goal={goals.calories}/>
+      </section>
+      <section className="q-macro-grid" aria-label="Makronährstoffe">
+        {[["Protein", totals.protein, goals.protein], ["Carbs", totals.carbs, goals.carbs], ["Fett", totals.fat, goals.fat]].map(([label, value, goal]) => <div key={label} className="q-card q-macro-card"><ProgressGauge label={label} value={value} goal={goal}/></div>)}
+      </section>
 
       {/* Meal log */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+      <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 1 }}>Mahlzeiten</div>
           <button onClick={onOpenScan} style={{
@@ -394,7 +363,7 @@ function ScanTab({ onAdd }) {
     if (!selectedRecipe) return;
     if (!recipeNote.trim()) { onAdd({ ...selectedRecipe, id: Date.now(), estimated: false, date: scanDate, meal_time: `${scanDate}T${scanTime}:00` }); return; }
     setAdjusting(true);
-    const sys = `Du bist Ernährungsexperte. Passe die Nährwerte eines Rezepts basierend auf dem Hinweis an.
+    const sys = `Nutze keine Emojis in deinen Antworten. Du bist Ernährungsexperte. Passe die Nährwerte eines Rezepts basierend auf dem Hinweis an.
 Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"note":"..."}`;
     const prompt = `Rezept: ${selectedRecipe.name}
 Original Nährwerte: ${selectedRecipe.calories} kcal, ${selectedRecipe.protein}g Protein, ${selectedRecipe.carbs}g Carbs, ${selectedRecipe.fat}g Fett
@@ -425,7 +394,7 @@ Passe die Nährwerte entsprechend an.`;
       <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Wähle wie du einloggen möchtest</div>
 
       {/* Date + Time selector */}
-      <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: "14px 16px", marginBottom: 16 }}>
+      <div className="q-card" style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: "14px 16px", marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           {[["Heute", today()], ["Gestern", new Date(Date.now()-86400000).toISOString().split("T")[0]]].map(([label, date]) => (
             <button key={label} onClick={() => setScanDate(date)} style={{
@@ -454,7 +423,7 @@ Passe die Nährwerte entsprechend an.`;
 
       {/* Mode selector */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        {[["📷", "KI-Scan", "ai"], ["🍽️", "Notion", "notion"], ["✏️", "Manuell", "manual"]].map(([icon, label, key]) => (
+        {[["camera", "KI-Scan", "ai"], ["utensils", "Notion", "notion"], ["edit", "Manuell", "manual"]].map(([icon, label, key]) => (
           <button key={key} onClick={() => switchMode(key)} style={{
             flex: 1, padding: "14px 0", borderRadius: 14,
             border: `1px solid ${mode === key ? C.accent : C.border}`,
@@ -462,7 +431,7 @@ Passe die Nährwerte entsprechend an.`;
             color: mode === key ? C.accent : C.mutedLight,
             cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600,
           }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>{label}
+            <div style={{ fontSize: 22, marginBottom: 4 }}><Icon name={icon} size={24} /></div>{label}
           </button>
         ))}
       </div>
@@ -470,10 +439,10 @@ Passe die Nährwerte entsprechend an.`;
       {/* ── AI MODE ── */}
       {mode === "ai" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
-          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${imageB64 ? C.accent : C.border}`, marginBottom: 12, overflow: "hidden" }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, border: `1px solid ${imageB64 ? C.accent : C.border}`, marginBottom: 12, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>📷</span>
+                <span style={{ fontSize: 20 }}><Icon name="camera" /></span>
                 <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Foto</div><div style={{ fontSize: 11, color: C.muted }}>Optional</div></div>
               </div>
               {imageB64
@@ -484,10 +453,10 @@ Passe die Nährwerte entsprechend an.`;
             {imagePreview && <div style={{ padding: "0 14px 14px" }}><img src={imagePreview} alt="food" style={{ width: "100%", borderRadius: 10, maxHeight: 180, objectFit: "cover" }}/></div>}
           </div>
 
-          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${text.trim() ? C.accent : C.border}`, marginBottom: 12 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, border: `1px solid ${text.trim() ? C.accent : C.border}`, marginBottom: 12 }}>
             <div style={{ padding: "14px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>✏️</span>
+                <span style={{ fontSize: 20 }}><Icon name="edit" /></span>
                 <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Beschreibung</div><div style={{ fontSize: 11, color: C.muted }}>Text oder Sprache</div></div>
               </div>
 
@@ -505,7 +474,7 @@ Passe die Nährwerte entsprechend an.`;
           {preparingImage && <p role="status" style={{ color: C.muted }}>Foto wird vorbereitet…</p>}
           {scanError && <p role="alert" style={{ color: C.red, marginBottom: 16 }}>{scanError}</p>}
           {result && (
-            <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, animation: "fadeIn .4s ease" }}>
+            <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, animation: "fadeIn .4s ease" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color: C.text, flex: 1, paddingRight: 10 }}>{result.name}</div>
                 {result.confidence && <span style={{ fontSize: 11, fontFamily: "'DM Mono',monospace", flexShrink: 0, color: confidenceColor[result.confidence] || C.muted, border: `1px solid ${confidenceColor[result.confidence] || C.muted}`, borderRadius: 6, padding: "3px 8px" }}>{result.confidence}</span>}
@@ -547,7 +516,7 @@ Passe die Nährwerte entsprechend an.`;
               {loadingRecipes && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: 20 }}>Lade Rezepte aus Notion…</div>}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {filteredRecipes.map(r => (
-                  <div key={r.id} onClick={() => setSelectedRecipe(r)} style={{ background: C.card, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  <div key={r.id} onClick={() => setSelectedRecipe(r)} className="q-card" style={{ background: C.card, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
                     onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
                     <div>
@@ -560,7 +529,7 @@ Passe die Nährwerte entsprechend an.`;
                         {r.tags.map(t => <span key={t} style={{ fontSize: 10, background: C.surface, borderRadius: 4, padding: "2px 6px", marginRight: 4, color: C.mutedLight }}>{t}</span>)}
                       </div>
                     </div>
-                    {r.rating > 0 && <div style={{ color: C.fat, fontSize: 13, marginLeft: 10 }}>{"★".repeat(r.rating)}</div>}
+                    {r.rating > 0 && <div style={{ color: C.fat, fontSize: 13, marginLeft: 10 }}>{Array.from({ length: Math.min(5, r.rating) }, (_, index) => <Icon key={index} name="sparkles" size={12}/>)}</div>}
                   </div>
                 ))}
               </div>
@@ -568,7 +537,7 @@ Passe die Nährwerte entsprechend an.`;
           ) : (
             <div style={{ animation: "fadeIn .2s ease" }}>
               <button onClick={() => setSelectedRecipe(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, marginBottom: 14, padding: 0 }}>← Zurück</button>
-              <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}`, marginBottom: 14 }}>
+              <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}`, marginBottom: 14 }}>
                 <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color: C.text, marginBottom: 12 }}>{selectedRecipe.name}</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   {[["kcal", selectedRecipe.calories, C.accent], ["P", selectedRecipe.protein+"g", C.protein], ["C", selectedRecipe.carbs+"g", C.carbs], ["F", selectedRecipe.fat+"g", C.fat]].map(([l,v,col]) => (
@@ -578,10 +547,10 @@ Passe die Nährwerte entsprechend an.`;
                     </div>
                   ))}
                 </div>
-                {selectedRecipe.cookingTime > 0 && <div style={{ fontSize: 12, color: C.muted }}>⏱ {selectedRecipe.cookingTime} Min · 💰 {selectedRecipe.costPerServing ? "€" + selectedRecipe.costPerServing : "–"}</div>}
+                {selectedRecipe.cookingTime > 0 && <div style={{ fontSize: 12, color: C.muted }}><Icon name="clock" size={14}/> {selectedRecipe.cookingTime} Min · <Icon name="wallet" size={14}/> {selectedRecipe.costPerServing ? "€" + selectedRecipe.costPerServing : "–"}</div>}
               </div>
 
-              <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+              <div className="q-card" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14 }}>
                 <div style={{ padding: "14px 16px 10px" }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 2 }}>Hinweise zur Portion</div>
                   <div style={{ fontSize: 12, color: C.muted }}>KI passt die Makros automatisch an</div>
@@ -602,7 +571,7 @@ Passe die Nährwerte entsprechend an.`;
       {/* ── MANUAL MODE ── */}
       {mode === "manual" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Name</div>
               <input value={manual.name} onChange={e => setManual(p => ({...p, name: e.target.value}))} placeholder="Mahlzeit benennen…" style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", boxSizing: "border-box" }}/>
@@ -706,7 +675,7 @@ function IFTracker() {
   const formatDuration = (h) => `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`;
 
   return (
-    <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${goalReached ? C.green : C.border}`, marginBottom: 14 }}>
+    <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${goalReached ? C.green : C.border}`, marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
           <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 1 }}>
@@ -729,7 +698,7 @@ function IFTracker() {
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>{goalReached ? "🎯 Ziel erreicht!" : `Noch ${formatDuration(hoursLeft)}`}</div>
+          <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>{goalReached ? "Ziel erreicht!" : `Noch ${formatDuration(hoursLeft)}`}</div>
           {lastMealTime && <div style={{ fontSize: 12, color: C.muted }}>Letzte Mahlzeit: {lastMealTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</div>}
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ø Fastenzeit: {avgFasting > 0 ? formatDuration(avgFasting) : "–"}</div>
         </div>
@@ -835,7 +804,7 @@ function AnalyticsTab({ goals }) {
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {[["nutrition", "🍽️ Ernährung"], ["body", "💪 Körper"]].map(([key, label]) => (
+        {[["nutrition", "Ernährung"], ["body", "Körper"]].map(([key, label]) => (
           <button key={key} onClick={() => setSubTab(key)} style={{
             flex: 1, padding: "10px 0", borderRadius: 12,
             border: `1px solid ${subTab===key ? C.accent : C.border}`,
@@ -855,9 +824,9 @@ function AnalyticsTab({ goals }) {
               { label: "Ø Kalorien", value: avgCal, unit: "kcal", color: C.accent, sub: `Ziel: ${goals.calories}` },
               { label: "Ø Protein", value: avgProtein, unit: "g", color: C.protein, sub: `Ziel: ${goals.protein}g` },
               { label: "Log-Streak", value: streak, unit: "Tage", color: C.carbs, sub: "in Folge" },
-              { label: "Protein-Ziel ✓", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} geloggt` },
+              { label: "Protein-Ziel", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} geloggt` },
             ].map(k => (
-              <div key={k.label} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+              <div key={k.label} className="q-card" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{k.label}</div>
                 <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: k.color }}>{k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{k.sub}</div>
@@ -869,7 +838,7 @@ function AnalyticsTab({ goals }) {
           <IFTracker/>
 
           {/* Two Rings */}
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Diese Woche</div>
             <div style={{ display: "flex", justifyContent: "space-around" }}>
               {[[avgWeekCal, goals.calories, C.accent, "kcal", "Kalorien"], [avgWeekProtein, goals.protein, C.protein, "g", "Protein"]].map(([val, goal, color, unit, label]) => (
@@ -891,7 +860,7 @@ function AnalyticsTab({ goals }) {
           </div>
 
           {/* Week bars */}
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Diese Woche</div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
               {weekData.map(d => {
@@ -910,7 +879,7 @@ function AnalyticsTab({ goals }) {
           </div>
 
           {/* Month Heatmap */}
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <button onClick={() => { const d=new Date(viewYear,viewMonth-2); setViewMonth(d.getMonth()+1); setViewYear(d.getFullYear()); }} style={{ background:"none", border:"none", color:C.mutedLight, cursor:"pointer", fontSize:22 }}>‹</button>
               <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1 }}>{monthName}</div>
@@ -938,7 +907,7 @@ function AnalyticsTab({ goals }) {
           </div>
 
           {/* Macro averages */}
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Monat</div>
             {[["Kalorien",avgCal,goals.calories,C.accent,"kcal"],["Protein",avgProtein,goals.protein,C.protein,"g"],["Carbs",avgCarbs,goals.carbs,C.carbs,"g"],["Fett",avgFat,goals.fat,C.fat,"g"]].map(([l,v,g,c,u]) => (
               <div key={l} style={{ marginBottom:14 }}>
@@ -966,7 +935,7 @@ function AnalyticsTab({ goals }) {
                 const isGoodDown = ["weight","waist","hip"].includes(m.key);
                 const positive = delta ? (isGoodDown ? parseFloat(delta)<0 : parseFloat(delta)>0) : null;
                 return (
-                  <div key={m.key} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+                  <div key={m.key} className="q-card" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{m.label}</div>
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: m.color }}>{latest[m.key]||"–"}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span></div>
                     {delta && <div style={{ fontSize: 12, color: positive?C.green:C.red, marginTop: 2 }}>{parseFloat(delta)>0?"+":""}{delta}{m.unit}</div>}
@@ -977,7 +946,7 @@ function AnalyticsTab({ goals }) {
           )}
 
           {/* Chart selector */}
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
               {bodyMetrics.map(m => (
@@ -996,7 +965,7 @@ function AnalyticsTab({ goals }) {
           </div>
 
           {/* Add measurement form */}
-          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14, overflow: "hidden" }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14, overflow: "hidden" }}>
             <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1 }}>Neue Messung</div>
               <button onClick={() => setShowMeasurementForm(!showMeasurementForm)} style={{
@@ -1033,7 +1002,7 @@ function AnalyticsTab({ goals }) {
 
           {/* History table */}
           {bodyHistory.length > 0 && (
-            <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
               <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -1058,7 +1027,7 @@ function AnalyticsTab({ goals }) {
           )}
 
           {/* KI Analysis */}
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1 }}>KI-Analyse</div>
               <div style={{ background: C.accent, color: "#fff", fontSize: 10, fontFamily: "'DM Mono',monospace", padding: "3px 8px", borderRadius: 20, fontWeight: 700 }}>AI</div>
@@ -1094,7 +1063,7 @@ function AnalyticsTab({ goals }) {
                 <div style={{ color: C.muted, fontSize: 13, marginBottom: 14, lineHeight: 1.5 }}>Analysiere deinen Fortschritt — erhalte personalisierte Empfehlungen.</div>
                 <button onClick={async () => {
                   setBodyAnalyzing(true);
-                  const sys = `Du bist Personal Trainer und Ernährungsberater. Analysiere die Körperdaten und gib konkrete Empfehlungen.
+                  const sys = `Nutze keine Emojis in deinen Antworten. Du bist Personal Trainer und Ernährungsberater. Analysiere die Körperdaten und gib konkrete Empfehlungen.
 Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze","recommendations":["Tipp 1","Tipp 2","Tipp 3"],"calorieAdjustment":"erhöhen|beibehalten|reduzieren","calorieReason":"kurze Begründung"}`;
                   try {
                     const raw = await callClaude(sys, "Körperdaten: " + JSON.stringify(bodyHistory.slice(-6)) + " Aktuelles Kalorienziel: " + goals.calories);
@@ -1109,7 +1078,7 @@ Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze"
           </div>
 
           {!latest && (
-            <div style={{ background: C.card, borderRadius: 16, padding: 30, border: `1px solid ${C.border}`, textAlign: "center" }}>
+            <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 30, border: `1px solid ${C.border}`, textAlign: "center" }}>
               <div style={{ color: C.muted, fontSize: 14 }}>Noch keine Körpermessungen</div>
             </div>
           )}
@@ -1131,7 +1100,7 @@ function MealPlanCard({ meal }) {
             <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginBottom: 2, letterSpacing: 1 }}>{meal.type?.toUpperCase()}</div>
             <div style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>
               {meal.recipe}
-              {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}>✦ Neu</span>}
+              {meal.isNew && <span style={{ marginLeft: 6, fontSize: 10, background: `${C.accent}20`, color: C.accent, borderRadius: 4, padding: "2px 6px" }}><Icon name="sparkles" size={12}/> Neu</span>}
             </div>
           </div>
           <div style={{ textAlign: "right", marginLeft: 10 }}>
@@ -1208,7 +1177,7 @@ function CoachTab({ goals, logged }) {
         carbs: a.carbs+(m.carbs||0), fat: a.fat+(m.fat||0),
       }), { calories:0, protein:0, carbs:0, fat:0 });
 
-      const sys = `Du bist Philipps persönlicher KI-Ernährungs- und Fitness-Coach. Du kennst seine Daten und gibst konkrete, personalisierte Empfehlungen.
+      const sys = `Nutze keine Emojis in deinen Antworten. Du bist Philipps persönlicher KI-Ernährungs- und Fitness-Coach. Du kennst seine Daten und gibst konkrete, personalisierte Empfehlungen.
 
 PHILIPPS PROFIL:
 - Lebt in Karlsruhe, macht Ausdauersport
@@ -1272,7 +1241,7 @@ Antworte auf Deutsch, direkt und konkret. Maximal 3-4 Sätze. Keine langen Liste
 
   const generate = async (selectedMode) => {
     setLoading(true); setResult(null); setMode(selectedMode);
-    const sys = `Du bist Ernährungsberater für Philipp. Er lebt in Karlsruhe, mag mediterrane Küche, Hühnchen, Pasta. Er macht Ausdauersport.
+    const sys = `Nutze keine Emojis in deinen Antworten. Du bist Ernährungsberater für Philipp. Er lebt in Karlsruhe, mag mediterrane Küche, Hühnchen, Pasta. Er macht Ausdauersport.
 Antworte NUR mit JSON, kein Markdown:
 {"title":"...","meals":[{"type":"Frühstück/Mittagessen/Abendessen/Snack","recipe":"Name","calories":X,"protein":X,"carbs":X,"fat":X,"isNew":true,"ingredients":["200g X"],"steps":["Schritt 1"]}],"totalCalories":X,"totalProtein":X,"totalCarbs":X,"totalFat":X,"tip":"kurzer Ernährungstipp"}`;
 
@@ -1313,7 +1282,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
     for (const meal of result.meals) {
       await saveMeal({ name: meal.recipe, calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, date });
     }
-    alert(`${result.meals.length} Mahlzeiten ins Log für ${date} übernommen ✅`);
+    alert(`${result.meals.length} Mahlzeiten ins Log für ${date} übernommen`);
   };
 
   return (
@@ -1324,7 +1293,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Dein persönlicher KI-Coach</div>
 
       {/* Chat */}
-      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 16, overflow: "hidden" }}>
+      <div className="q-card" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 16, overflow: "hidden" }}>
         <div style={{ padding: "14px 16px", maxHeight: 280, overflowY: "auto" }}>
           {chatMessages.map((msg, i) => (
             <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
@@ -1363,15 +1332,15 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       {/* Mode cards */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
         {[
-          ["inspo", "🌟", "Inspo", "Plane einen vollen Tag — ideal zum Einkaufen"],
-          ["fillup", "⚡", "Fill Up", "Fülle deine heutigen Makros sinnvoll auf"],
+          ["inspo", "sparkles", "Inspo", "Plane einen vollen Tag — ideal zum Einkaufen"],
+          ["fillup", "bolt", "Fill Up", "Fülle deine heutigen Makros sinnvoll auf"],
         ].map(([key, icon, label, sub]) => (
           <div key={key} onClick={() => { setResult(null); setMode(key); }} style={{
             flex: 1, background: mode===key ? `${C.accent}15` : C.card,
             border: `1px solid ${mode===key ? C.accent : C.border}`,
             borderRadius: 16, padding: 16, cursor: "pointer", transition: "all .15s ease",
           }}>
-            <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
+            <div style={{ fontSize: 28, marginBottom: 6 }}><Icon name={icon} size={24} /></div>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: mode===key ? C.accent : C.text, letterSpacing: 1 }}>{label}</div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{sub}</div>
           </div>
@@ -1380,7 +1349,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
 
       {/* Fill Up: show today's remaining */}
       {mode === "fillup" && (
-        <div style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, animation: "fadeIn .2s ease" }}>
+        <div className="q-card" style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, animation: "fadeIn .2s ease" }}>
           <div style={{ fontSize: 12, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 10 }}>HEUTE NOCH OFFEN</div>
           <div style={{ display: "flex", gap: 10 }}>
             {[["kcal", remaining.calories, C.accent], ["Protein", remaining.protein+"g", C.protein], ["Carbs", remaining.carbs+"g", C.carbs], ["Fett", remaining.fat+"g", C.fat]].map(([l,v,c]) => (
@@ -1396,7 +1365,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
 
       {/* Inspo: date picker */}
       {mode === "inspo" && (
-        <div style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeIn .2s ease" }}>
+        <div className="q-card" style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeIn .2s ease" }}>
           <div style={{ fontSize: 13, color: C.mutedLight }}>Planen für</div>
           <input type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
         </div>
@@ -1428,14 +1397,14 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
           padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20,
           letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16,
         }}>
-          {loading ? "KI denkt…" : mode === "inspo" ? "Tag planen ✦" : "Auffüllen ⚡"}
+          {loading ? "KI denkt…" : mode === "inspo" ? "Tag planen" : "Auffüllen"}
         </button>
       )}
 
       {/* Result */}
       {result && (
         <div style={{ animation: "fadeIn .4s ease" }}>
-          <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}40`, marginBottom: 14 }}>
+          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}40`, marginBottom: 14 }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: C.accent, marginBottom: 4 }}>{result.title}</div>
             {result.meals?.map((meal, i) => <MealPlanCard key={i} meal={meal}/>)}
             
@@ -1451,7 +1420,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
 
             {result.tip && (
               <div style={{ marginTop: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 12, color: C.muted, fontSize: 12, lineHeight: 1.5 }}>
-                💡 {result.tip}
+                <Icon name="sparkles" size={16}/> {result.tip}
               </div>
             )}
           </div>
@@ -1505,7 +1474,7 @@ function GoalsTab({ goals, setGoals }) {
           borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 600,
           cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
         }}>
-          {saving ? "Speichert…" : saved ? "✓ Gespeichert" : editing ? "Speichern" : "Anpassen"}
+          {saving ? "Speichert…" : saved ? "Gespeichert" : editing ? "Speichern" : "Anpassen"}
         </button>
       </div>
 
@@ -1520,10 +1489,10 @@ function GoalsTab({ goals, setGoals }) {
         {GOAL_META.map(m => {
           const val = form[m.key] ?? 0;
           return (
-            <div key={m.key} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+            <div key={m.key} className="q-card" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>{m.icon}</span>
+                  <span style={{ fontSize: 20 }}><Icon name={m.icon} /></span>
                   <div>
                     <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{m.label}</div>
                     <div style={{ fontSize: 11, color: C.muted }}>{m.unit} / Tag</div>
@@ -1596,7 +1565,7 @@ export default function App() {
   const navItems = [
     { key: "today", icon: "◉", label: "Heute" },
     { key: "scan", icon: "⬡", label: "Scan" },
-    { key: "coach", icon: "📅", label: "Coach" },
+    { key: "coach", icon: "calendar", label: "Coach" },
     { key: "week", icon: "▦", label: "Woche" },
   ];
 
@@ -1608,7 +1577,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingBottom: 90 }}>
+    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingBottom: 140 }}>
       {/* Header */}
       <div style={{ padding: "44px 20px 16px" }}>
         <div style={{ color: C.muted, fontSize: 11, fontFamily: "'DM Mono',monospace", letterSpacing: 2 }}>{dateStr}</div>
@@ -1628,22 +1597,22 @@ export default function App() {
       {/* Bottom Nav */}
       <div className="nutrition-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
         <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto", padding: "8px 0 24px", alignItems: "center" }}>
-          <button onClick={() => setTab("today")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "today" ? C.accent : C.muted }}>
+          <button onClick={() => setTab("today")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "today" ? "#fff" : "#bcc8cc" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Heute</span>
           </button>
-          <button onClick={() => setTab("coach")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "coach" ? C.accent : C.muted }}>
+          <button onClick={() => setTab("coach")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "coach" ? "#fff" : "#bcc8cc" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7z"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Coach</span>
           </button>
           <button onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? C.accent : C.muted }}>
+          <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? "#fff" : "#bcc8cc" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Analytics</span>
           </button>
-          <button onClick={() => setTab("goals")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "goals" ? C.accent : C.muted }}>
+          <button onClick={() => setTab("goals")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "goals" ? "#fff" : "#bcc8cc" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Ziele</span>
           </button>
