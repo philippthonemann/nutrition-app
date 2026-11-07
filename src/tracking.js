@@ -19,7 +19,7 @@ export function summarizeDays(meals, records, history, fallback) {
     day.count++;
     for (const key of ['calories','protein','carbs','fat']) day[key] += Number(meal[key]) || 0;
   }
-  for (const record of records) if (record.completion === 'complete' && !days[record.date]) days[record.date] = { calories: 0, protein: 0, carbs: 0, fat: 0, count: 0 };
+  for (const record of records) if (record.completion !== 'auto' && !days[record.date]) days[record.date] = { calories: 0, protein: 0, carbs: 0, fat: 0, count: 0 };
   for (const [date, day] of Object.entries(days)) {
     const record = records.find(item => item.date === date);
     day.goal = Number(record?.calorie_goal || goalOnDate(date, history, fallback));
