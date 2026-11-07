@@ -10,6 +10,7 @@ Schema: {"name":"Gericht","components":[{"name":"Zutat, Zubereitung","grams":150
 Alle Zahlen endlich und nicht negativ, components enthält höchstens 12 Einträge.
 Textbeschreibungen: Zerlege auch zusammengesetzte Gerichte sorgfältig (Brot/Wrap, Füllung, Sauce, Toppings, Getränke). Beachte Stückzahl, Größe, Milchtyp, ml, Marken und explizite Angaben wie frittiert, ohne Öl, Skyr-Sauce. Bereits genannte Fakten niemals erneut erfragen. Keine Zutaten ergänzen, nur weil sie theoretisch passen könnten.
 Optional zusätzlich "questions":[{"id":"fried","question":"War das Schnitzel frittiert?"}]. Maximal ZWEI kurze, konkrete Ja/Nein-Fragen zur größten noch offenen Kalorienunsicherheit. Nur falls eine plausible Alternative die Portion deutlich verändert (Faustregel mindestens 50 kcal); keine Fragen zu bloß theoretischen Zusätzen und keine Fragen nach Gramm oder offenen Mengen. Bei klarer Beschreibung oder geringem Einfluss questions: []. Gib auch bei Rückfragen bereits eine vollständige vorläufige Schätzung ab und benenne deren Annahmen. Enthält die Eingabe bestätigte Antworten, berücksichtige sie und gib questions: [] zurück.
+Bei ausdrücklich genannten Markenprodukten zusätzlich "product_queries":[{"query":"Marke Produkt Sorte","component_index":0}]. Maximal zwei kurze Produktnamen, keine ganze Mahlzeitenbeschreibung oder persönlichen Daten. Nur nach tatsächlich genannter Marke/Sorte suchen, nichts erfinden. component_index verweist auf den passenden Eintrag in components. Eine echte Datenbankabfrage erfolgt separat; ohne bestätigte Quelle sind deine Nährwerte weiterhin Schätzungen. Ohne Markenprodukt product_queries: [].
 Ohne erkennbares Essen oder ausreichende Beschreibung: {"error":"Bitte fotografiere eine Mahlzeit oder beschreibe sie genauer."}.`;
 
 export function normalizeScan(raw) {
@@ -24,6 +25,7 @@ export function normalizeScan(raw) {
   })) : [];
   const questions = Array.isArray(raw.questions) ? raw.questions.filter(item => item && typeof item.question === 'string' && item.question.trim()).slice(0, 2).map((item, index) => ({ id: String(index), question: item.question.slice(0, 180) })) : [];
   const result = { ...raw, name: String(raw.name || 'Mahlzeit').slice(0, 150), components, questions };
+  result.product_queries = Array.isArray(raw.product_queries) ? raw.product_queries.filter(item => typeof item?.query === 'string' && item.query.trim().length >= 3 && Number.isInteger(item.component_index) && item.component_index >= 0 && item.component_index < components.length).slice(0,2).map(item => ({query:item.query.trim().slice(0,120),component_index:item.component_index})) : [];
   for (const key of ['calories', 'protein', 'carbs', 'fat']) result[key] = components.length
     ? Math.round(components.reduce((sum, item) => sum + item[key], 0)) : number(raw[key], key === 'calories' ? 15000 : 2000);
   return result;
@@ -38,6 +40,19 @@ export function resizeComponent(result, index, grams) {
     ...item, grams, ...Object.fromEntries(['calories', 'protein', 'carbs', 'fat'].map(key => [key, item[key] * ratio])),
   });
   return { ...normalizeScan({ ...result, components }), calorie_range: null, note: 'Mengen von dir angepasst. Nährwerte proportional zur ursprünglichen Schätzung berechnet.' };
+}
+
+export function applyProduct(result, index, product, grams) {
+  if (!result.components[index] || !Number.isFinite(grams) || grams <= 0 || grams > 10000) throw new Error('Ungültige Portionsgröße.');
+  const component = { name:`${product.brand} ${product.name}`.trim(), grams,
+    ...Object.fromEntries(['calories','protein','carbs','fat'].map(key => [key,product.per100g[key] * grams / 100])),
+  };
+  const components = result.components.map((item,i) => i === index ? component : item);
+  return { ...normalizeScan({ ...result,components }), calorie_range:null,
+    product_queries:result.product_queries.filter(item => item.component_index !== index),
+    sources:[...(result.sources || []),{ name:component.name,url:product.url,component_index:index }],
+    note:'Bestätigte Produktwerte auf deine Menge umgerechnet. Übrige Zutaten bleiben Schätzungen.',
+  };
 }
 
 export async function prepareFoodImage(file) {

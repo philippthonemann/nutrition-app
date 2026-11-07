@@ -74,7 +74,7 @@ button:disabled { opacity: .48; cursor: not-allowed !important; }
 .q-analytics-gauges { padding: 16px; margin-bottom: 16px; border-radius: 20px; background: #fff; }
 .q-analytics-gauge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
 .q-analytics-gauge-grid .q-gauge svg { max-width: 150px; margin: auto; }
-.q-analytics-page .q-card:not(.q-analytics-kpi), .q-scan-page .q-card { background-image: linear-gradient(135deg,#ffffff,#f4f7f7) !important; }
+.q-analytics-page .q-card:not(.q-analytics-kpi):not(.q-body-kpi), .q-scan-page .q-card { background-image: linear-gradient(135deg,#ffffff,#f4f7f7) !important; }
 .q-quick-adds { padding: 16px 12px; border-radius: 20px; margin-bottom: 16px; }
 .q-quick-list { display: grid; gap: 6px; margin-top: 12px; }
 .q-quick-row { display: flex; gap: 6px; }
@@ -108,3 +108,19 @@ button:disabled { opacity: .48; cursor: not-allowed !important; }
 .q-body-page tbody tr { border-top: 1px solid #dce5e7; }
 .q-body-page input { min-height: 46px; background: linear-gradient(120deg,#e5eef0,#f6f8f9) !important; border-color: #cedde2 !important; }
 .q-body-page .q-card > div:first-child { color: #405c69; }
+.q-analytics-page .q-body-page .q-body-kpi { background-image: radial-gradient(ellipse at 0 0,#cedde066,transparent 70%),linear-gradient(135deg,#8ca3ac,#738c97) !important; }
+.q-empty-analytics { background: #e5eef1; color: #405c69; padding: 16px; border-radius: 18px; margin-bottom: 16px; font-size: 12px; line-height: 1.7; }
+.q-empty-analytics p { margin-top: 8px; }
+.q-product-lookup { padding: 14px; border-radius: 16px; background: #e8f0f2; border: 1px solid #cedde2; margin-bottom: 16px; }
+.q-product-lookup h3 { font-size: 14px; margin-bottom: 8px; }
+.q-product-lookup p,.q-product-source { font-size: 11px; line-height: 1.7; margin: 8px 0; color: #526e7a; }
+.q-product-search { display: flex; gap: 6px; margin: 10px 0; }
+.q-product-search input { min-width: 0; flex: 1; padding: 8px; font-size: 16px; }
+.q-product-lookup button { background: #fff; border: 1px solid #c7d6dc; color: #405c69; padding: 9px 12px; }
+.q-product-choice { display: block; width: 100%; text-align: left; margin: 6px 0; }
+.q-product-choice strong,.q-product-choice span { display: block; font-size: 12px; }
+.q-product-choice span { margin-top: 4px; font-size: 10px; }
+.q-product-choice[aria-pressed=true] { background: #526e7a; color: #fff; }
+.q-product-portion { display: grid; gap: 10px; margin-top: 12px; font-size: 12px; }
+.q-product-portion input { width: 100%; padding: 10px; margin-top: 8px; }
+.q-product-portion a,.q-product-source a { color: #405c69; }

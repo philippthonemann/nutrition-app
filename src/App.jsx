@@ -4,6 +4,8 @@ import { authFetch } from "./authFetch";
 import { SCAN_PROMPT, normalizeScan, resizeComponent, prepareFoodImage } from "./scan.js";
 import "./theme.css";
 import DailyCompletion from "./DailyCompletion.jsx";
+import ProductLookup from "./ProductLookup.jsx";
+import { mealTimestamp, fastingHours } from "./mealTime.js";
 import { summarizeDays, completeAverages, trackingStatus, goalOnDate } from "./tracking.js";
 import Icon from "./Icon.jsx";
 import { AccountSettingsContext } from "./AccountSettingsContext";
@@ -61,7 +63,7 @@ async function loadTodayMeals(date = null) {
 }
 
 async function saveMeal(meal) {
-  const mealTime = meal.meal_time || new Date().toISOString();
+  const mealTime = mealTimestamp(meal.meal_time);
   const { data } = await supabase.from("meals").insert([{
     name: meal.name, calories: meal.calories || 0,
     protein: meal.protein || 0, carbs: meal.carbs || 0, fat: meal.fat || 0,
@@ -396,7 +398,8 @@ function ScanTab({ onAdd }) {
     setLoading(true); setResult(null); setScanError("");
     try {
       const prompt = (input.text || "Analysiere die gesamte gezeigte Portion. Mengen sind unbekannt; benenne deine Annahmen.") + (refine ? `\nBestätigte Antworten zur ursprünglichen Mahlzeit:\n${followup}\nErstelle die aktualisierte vollständige Schätzung. Stelle keine weiteren Fragen.` : "");
-      const raw = await callClaude(SCAN_PROMPT, prompt, input.image);
+      const productNotes = refine && result.sources?.length ? "\nBereits bestätigte Produktkomponenten unverändert lassen: " + JSON.stringify(result.sources.map(source => result.components[source.component_index])) : "";
+      const raw = await callClaude(SCAN_PROMPT, prompt + productNotes, input.image);
       const next = normalizeScan(JSON.parse(raw));
       setResult(refine ? { ...next, questions: [] } : next);
     } catch(e) { setScanError(e.message || "Analyse fehlgeschlagen. Bitte versuche es erneut."); }
@@ -532,6 +535,8 @@ Passe die Nährwerte entsprechend an.`;
                   </div>
                 ))}
               </div>
+              {result.product_queries?.map(item => <ProductLookup key={`${item.component_index}:${item.query}`} query={item.query} componentIndex={item.component_index} result={result} onApply={setResult}/>)}
+              {result.sources?.map((source,index) => <p key={index} className="q-product-source"><a href={source.url} target="_blank" rel="noreferrer">Produktquelle: {source.name}</a></p>)}
               {result.questions?.length > 0 && <section className="q-clarifications">
                 <Label>Kurz genauer · optional</Label>
                 {result.questions.map(question => <div key={question.id} className="q-question"><p>{question.question}</p><div className="q-answer-buttons">{[[true,"Ja"],[false,"Nein"]].map(([value,label]) => <button key={label} aria-pressed={answers[question.id] === value} onClick={() => setAnswers(previous => ({ ...previous, [question.id]: value }))}>{label}</button>)}</div></div>)}
@@ -719,7 +724,7 @@ function IFTracker() {
         if (diffH > 4 && diffH < 24) windows.push(diffH);
       }
       const avgFasting = windows.length > 0 ? windows.reduce((a,b)=>a+b,0)/windows.length : 0;
-      const currentFasting = lastMealTime ? (now - lastMealTime) / 3600000 : 0;
+      const currentFasting = lastMealTime ? fastingHours(lastMealTime, new Date()) : null;
       setIfData({ lastMealTime, avgFasting, currentFasting, windows });
     });
     const interval = setInterval(() => setNow(new Date()), 60000);
@@ -727,8 +732,10 @@ function IFTracker() {
   }, []);
 
   if (!ifData) return null;
-  const { lastMealTime, avgFasting, currentFasting, windows } = ifData;
-  const pct = Math.min((currentFasting / ifGoal) * 100, 100);
+  const { lastMealTime, avgFasting, windows } = ifData;
+  const elapsed = lastMealTime ? fastingHours(lastMealTime, now) : null;
+  const currentFasting = elapsed ?? 0;
+  const pct = Math.max(0,Math.min((currentFasting / ifGoal) * 100, 100));
   const goalReached = currentFasting >= ifGoal;
   const hoursLeft = Math.max(0, ifGoal - currentFasting);
   const formatDuration = (h) => `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`;
@@ -752,12 +759,13 @@ function IFTracker() {
         <div style={{ position: "relative", flexShrink: 0 }}>
           <Ring value={currentFasting} goal={ifGoal} color={goalReached ? C.green : C.accent} size={90} sw={8}/>
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 16, color: goalReached ? C.green : C.accent, lineHeight: 1 }}>{Math.floor(currentFasting)}h</div>
-            <div style={{ fontSize: 9, color: C.muted }}>{Math.round((currentFasting % 1) * 60)}m</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 16, color: goalReached ? C.green : C.accent, lineHeight: 1 }}>{elapsed == null ? "–" : `${Math.floor(currentFasting)}h`}</div>
+            <div style={{ fontSize: 9, color: C.muted }}>{elapsed == null ? "" : `${Math.floor((currentFasting % 1) * 60)}m`}</div>
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>{goalReached ? "Ziel erreicht!" : `Noch ${formatDuration(hoursLeft)}`}</div>
+          <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>{elapsed == null ? "Mahlzeitenzeit prüfen" : goalReached ? "Ziel erreicht!" : `Noch ${formatDuration(hoursLeft)}`}</div>
+          {elapsed == null && <p className="q-inline-message">Die gespeicherte Zeit liegt in der Zukunft. Fastenzeit wird erst ab diesem Zeitpunkt berechnet.</p>}
           {lastMealTime && <div style={{ fontSize: 12, color: C.muted }}>Letzte Mahlzeit: {lastMealTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</div>}
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ø Fastenzeit: {avgFasting > 0 ? formatDuration(avgFasting) : "–"}</div>
         </div>
@@ -891,6 +899,7 @@ function AnalyticsTab({ goals }) {
       {subTab === "nutrition" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
           {analyticsError ? <p role="alert" className="q-inline-message">{analyticsError}</p> : <p className="q-analysis-basis">Monat: {loggedDays} vollständige Tage · {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} unvollständig ausgeschlossen. Auto-Regel: mindestens ⅔ des Kalorienziels. Für alte Tage ohne Zielhistorie gilt das früheste bekannte Ziel.</p>}
+          {loggedDays === 0 && <section className="q-card q-empty-analytics"><strong>Keine vollständigen Tage in diesem Monat</strong><p>Die Mahlzeiten sind geladen. {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} erfasste Tage liegen unter der Vollständigkeitsgrenze oder wurden als unvollständig markiert. Deshalb zeigen die Durchschnittswerte einen Strich.</p><p>Wenn ein Tag trotzdem vollständig erfasst ist, tippe ihn unten im Kalender an und wähle „Vollständig“.</p></section>}
           {/* KPI Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             {[
