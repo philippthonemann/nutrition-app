@@ -4,6 +4,7 @@ import { requireOwner } from '../lib/require-owner.js';
 import analyze from '../api/analyze.js';
 import claude from '../api/claude.js';
 import notion from '../api/notion.js';
+import products from '../api/products.js';
 
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
@@ -15,7 +16,7 @@ const req = { headers: { authorization: 'Bearer test-token' } };
 
 test('all three endpoints reject missing and malformed tokens before external calls', async () => {
   globalThis.fetch = () => { throw new Error('External request must not run'); };
-  for (const [handler, method] of [[analyze, 'POST'], [claude, 'POST'], [notion, 'GET']]) {
+  for (const [handler, method] of [[analyze, 'POST'], [claude, 'POST'], [notion, 'GET'], [products, 'GET']]) {
     for (const authorization of [undefined, '', 'Basic abc', 'Bearer a b']) {
       const res = response();
       await handler({ method, headers: { authorization } }, res);
