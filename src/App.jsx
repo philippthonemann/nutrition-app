@@ -3,6 +3,8 @@ import { supabase } from "./supabase";
 import { authFetch } from "./authFetch";
 import { SCAN_PROMPT, normalizeScan, resizeComponent, prepareFoodImage } from "./scan.js";
 import "./theme.css";
+import DailyCompletion from "./DailyCompletion.jsx";
+import { summarizeDays, completeAverages, trackingStatus, goalOnDate } from "./tracking.js";
 import Icon from "./Icon.jsx";
 import { AccountSettingsContext } from "./AccountSettingsContext";
 import { quickRecipes, readPinned } from "./quickAdds.js";
@@ -101,18 +103,23 @@ async function loadRecentMealsWithTime() {
   return data || [];
 }
 
-async function loadMonthMeals(year, month) {
-  const start = `${year}-${String(month).padStart(2,'0')}-01`;
-  const end = new Date(year, month, 0).toISOString().split("T")[0];
-  const { data } = await supabase.from("meals").select("date, calories, protein, carbs, fat").gte("date", start).lte("date", end);
-  return data || [];
+async function loadNutritionRange(start, end = null) {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    let query = supabase.from("meals").select("id,date,calories,protein,carbs,fat").gte("date",start).order("date").order("id").range(offset,offset+999);
+    if (end) query = query.lte("date",end);
+    const { data,error } = await query;
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) return rows;
+  }
 }
-
+async function loadMonthMeals(year, month) {
+  return loadNutritionRange(`${year}-${String(month).padStart(2,'0')}-01`, localDate(new Date(year,month,0)));
+}
 async function loadWeekMeals() {
-  const start = new Date();
-  start.setDate(start.getDate() - 6);
-  const { data } = await supabase.from("meals").select("date, calories, protein, carbs, fat").gte("date", localDate(start));
-  return data || [];
+  const start = new Date(); start.setDate(start.getDate()-6);
+  return loadNutritionRange(localDate(start),today());
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -241,6 +248,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
         {[["Protein", totals.protein, goals.protein], ["Carbs", totals.carbs, goals.carbs], ["Fett", totals.fat, goals.fat]].map(([label, value, goal]) => <div key={label} className="q-card q-macro-card"><ProgressGauge label={label} value={value} goal={goal}/></div>)}
       </section>
 
+      <DailyCompletion date={selectedDate} calories={totals.calories} hasMeals={logged.length > 0} goal={goals.calories}/>
       {/* Meal log */}
       <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -444,15 +452,15 @@ Passe die Nährwerte entsprechend an.`;
           <input type="date" value={scanDate} max={today()} onChange={e => setScanDate(e.target.value)} style={{
             flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
             padding: "6px 10px", color: C.mutedLight, fontFamily: "'DM Sans',sans-serif",
-            fontSize: 12, outline: "none", colorScheme: "dark",
+            fontSize: 12, outline: "none", colorScheme: "light",
           }}/>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: C.muted, fontFamily: "'DM Mono',monospace" }}>⏰</span>
+          <span style={{ fontSize: 12, color: C.muted, fontFamily: "'DM Mono',monospace" }}><Icon name="clock" size={16}/></span>
           <input type="time" value={scanTime} onChange={e => setScanTime(e.target.value)} style={{
             flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
             padding: "6px 10px", color: C.accent, fontFamily: "'DM Mono',monospace",
-            fontSize: 14, outline: "none", colorScheme: "dark",
+            fontSize: 14, outline: "none", colorScheme: "light",
           }}/>
           <button onClick={() => { const n = new Date(); setScanTime(`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 11 }}>Jetzt</button>
         </div>
@@ -662,8 +670,8 @@ function WeightChart({ history, metric, color, unit }) {
   const pathD = points.map((p,i) => (i===0?"M":"L") + " " + p.x + " " + p.y).join(" ");
   const areaD = pathD + " L " + points[points.length-1].x + " " + H + " L " + points[0].x + " " + H + " Z";
   const trend = vals[vals.length-1] - vals[0];
-  const isGoodDown = ["weight","waist","hip"].includes(metric);
-  const trendColor = trend === 0 ? C.muted : (isGoodDown ? (trend < 0 ? C.green : C.red) : (trend > 0 ? C.green : C.red));
+  const isGoodDown = ["weight","waist"].includes(metric);
+  const trendColor = metric === "hip" ? C.mutedLight : trend === 0 ? C.muted : (isGoodDown ? (trend < 0 ? C.green : C.red) : (trend > 0 ? C.green : C.red));
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
@@ -774,6 +782,11 @@ function AnalyticsTab({ goals }) {
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [monthData, setMonthData] = useState([]);
+  const [trackingRecords, setTrackingRecords] = useState([]);
+  const [goalHistory, setGoalHistory] = useState([]);
+  const [yearMeals, setYearMeals] = useState([]);
+  const [inspectDate, setInspectDate] = useState(null);
+  const [analyticsError, setAnalyticsError] = useState("");
   const [weekData, setWeekData] = useState([]);
   const [bodyHistory, setBodyHistory] = useState([]);
   const [activeChart, setActiveChart] = useState("weight");
@@ -783,7 +796,15 @@ function AnalyticsTab({ goals }) {
   const [bodyAnalyzing, setBodyAnalyzing] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadMonthMeals(viewYear, viewMonth), loadWeekMeals(), loadBodyMeasurements()]).then(([month, week, body]) => {
+    let active = true;
+    const start = new Date(); start.setDate(start.getDate()-365);
+    Promise.all([loadMonthMeals(viewYear, viewMonth), loadWeekMeals(), loadBodyMeasurements(), supabase.from("daily_tracking").select("*"), supabase.from("goals").select("calories,created_at").order("created_at"), loadNutritionRange(localDate(start),today())]).then(([month, week, body, tracking, goalRows, year]) => {
+      if (!active) return;
+      if (tracking.error || goalRows.error) { setAnalyticsError("Die Datengrundlage konnte nicht vollständig geladen werden. Bitte lade Analytics erneut."); return; }
+      setAnalyticsError("");
+      setTrackingRecords(tracking.data || []);
+      setGoalHistory((goalRows.data || []).map(item => ({ ...item, day: localDate(new Date(item.created_at)) })));
+      setYearMeals(year);
       setMonthData(month);
       setBodyHistory(body);
       const days = ["Mo","Di","Mi","Do","Fr","Sa","So"];
@@ -793,34 +814,31 @@ function AnalyticsTab({ goals }) {
         date.setDate(date.getDate()-(todayIdx-i));
         const dateStr = localDate(date);
         const dayMeals = week.filter(m => m.date===dateStr);
-        return { day, dateStr, cal: dayMeals.reduce((a,m)=>a+(m.calories||0),0), protein: dayMeals.reduce((a,m)=>a+(m.protein||0),0), today: i===todayIdx };
+        return { day, dateStr, count: dayMeals.length, cal: dayMeals.reduce((a,m)=>a+(m.calories||0),0), protein: dayMeals.reduce((a,m)=>a+(m.protein||0),0), today: i===todayIdx };
       }));
-    });
+    }).catch(() => { if (active) setAnalyticsError("Analytics konnten nicht geladen werden."); });
+    return () => { active = false; };
   }, [viewMonth, viewYear]);
 
-  const dailyTotals = {};
-  monthData.forEach(m => {
-    if (!dailyTotals[m.date]) dailyTotals[m.date] = { calories:0, protein:0, carbs:0, fat:0 };
-    dailyTotals[m.date].calories += m.calories||0;
-    dailyTotals[m.date].protein += m.protein||0;
-    dailyTotals[m.date].carbs += m.carbs||0;
-    dailyTotals[m.date].fat += m.fat||0;
-  });
-
-  const loggedDays = Object.keys(dailyTotals).length;
-  const avgCal = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.calories,0)/loggedDays) : 0;
-  const avgProtein = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.protein,0)/loggedDays) : 0;
-  const avgCarbs = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.carbs,0)/loggedDays) : 0;
-  const avgFat = loggedDays>0 ? Math.round(Object.values(dailyTotals).reduce((a,d)=>a+d.fat,0)/loggedDays) : 0;
-  const proteinGoalDays = Object.values(dailyTotals).filter(d=>d.protein>=goals.protein).length;
-  const avgWeekCal = weekData.filter(d=>d.cal>0).length>0 ? Math.round(weekData.filter(d=>d.cal>0).reduce((a,d)=>a+d.cal,0)/weekData.filter(d=>d.cal>0).length) : 0;
-  const avgWeekProtein = weekData.filter(d=>d.protein>0).length>0 ? Math.round(weekData.filter(d=>d.protein>0).reduce((a,d)=>a+d.protein,0)/weekData.filter(d=>d.protein>0).length) : 0;
-
+  const dailyTotals = summarizeDays(monthData, trackingRecords.filter(item => item.date.startsWith(`${viewYear}-${String(viewMonth).padStart(2,"0")}`)), goalHistory, goals.calories);
+  const averages = completeAverages(dailyTotals);
+  const loggedDays = averages.count;
+  const avgCal = averages.calories;
+  const avgProtein = averages.protein;
+  const avgCarbs = averages.carbs;
+  const avgFat = averages.fat;
+  const completeMonth = Object.values(dailyTotals).filter(day => day.status === "complete");
+  const proteinGoalDays = completeMonth.filter(day => day.protein >= goals.protein).length;
+  const completeWeek = weekData.filter(day => trackingStatus(day.cal, day.count > 0, trackingRecords.find(item => item.date === day.dateStr), goalOnDate(day.dateStr, goalHistory, goals.calories)) === "complete");
+  const avgWeekCal = completeWeek.length ? Math.round(completeWeek.reduce((sum,day) => sum + day.cal,0)/completeWeek.length) : null;
+  const avgWeekProtein = completeWeek.length ? Math.round(completeWeek.reduce((sum,day) => sum + day.protein,0)/completeWeek.length) : null;
+  const streakDays = summarizeDays(yearMeals, trackingRecords, goalHistory, goals.calories);
   let streak = 0;
   const checkDate = new Date();
+  if (streakDays[localDate(checkDate)]?.status !== "complete") checkDate.setDate(checkDate.getDate()-1);
   for (let i=0; i<365; i++) {
-    const dateStr = localDate(checkDate);
-    if (dailyTotals[dateStr]) { streak++; checkDate.setDate(checkDate.getDate()-1); } else break;
+    if (streakDays[localDate(checkDate)]?.status !== "complete") break;
+    streak++; checkDate.setDate(checkDate.getDate()-1);
   }
 
   const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
@@ -830,10 +848,11 @@ function AnalyticsTab({ goals }) {
   const getHeatmapColor = (dateStr) => {
     const d = dailyTotals[dateStr];
     if (!d) return C.border;
-    const pct = d.calories/goals.calories;
+    if (d.status !== "complete") return "#b6a58a";
+    const pct = d.calories/d.goal;
     if (pct>=0.9 && pct<=1.1) return C.green;
-    if (pct>=0.7) return C.accent;
-    if (pct>0) return "#555";
+    if (pct>=2/3 && pct<=1.3) return C.accent;
+    if (pct>1.3) return C.red;
     return C.border;
   };
 
@@ -841,11 +860,13 @@ function AnalyticsTab({ goals }) {
     { key:"weight", label:"Gewicht", unit:"kg", color:C.accent },
     { key:"waist", label:"Bauch", unit:"cm", color:C.protein },
     { key:"chest", label:"Brust", unit:"cm", color:C.carbs },
-    { key:"hip", label:"Hüfte", unit:"cm", color:C.fat },
+    { key:"hip", label:"Oberarmumfang", unit:"cm", color:C.fat },
   ];
 
   const latest = bodyHistory[bodyHistory.length-1];
   const prev = bodyHistory[bodyHistory.length-2];
+
+  if (analyticsError) return <p role="alert" className="q-inline-message">{analyticsError}</p>;
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
@@ -869,17 +890,18 @@ function AnalyticsTab({ goals }) {
       {/* ── NUTRITION SUB-TAB ── */}
       {subTab === "nutrition" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
+          {analyticsError ? <p role="alert" className="q-inline-message">{analyticsError}</p> : <p className="q-analysis-basis">Monat: {loggedDays} vollständige Tage · {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} unvollständig ausgeschlossen. Auto-Regel: mindestens ⅔ des Kalorienziels. Für alte Tage ohne Zielhistorie gilt das früheste bekannte Ziel.</p>}
           {/* KPI Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             {[
               { label: "Ø Kalorien", value: avgCal, unit: "kcal", color: C.accent, sub: `Ziel: ${goals.calories}` },
               { label: "Ø Protein", value: avgProtein, unit: "g", color: C.protein, sub: `Ziel: ${goals.protein}g` },
-              { label: "Log-Streak", value: streak, unit: "Tage", color: C.carbs, sub: "in Folge" },
-              { label: "Protein-Ziel", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} geloggt` },
+              { label: "Vollständig-Streak", value: streak, unit: "Tage", color: C.carbs, sub: "in Folge" },
+              { label: "Protein-Ziel", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} vollständigen Tagen` },
             ].map(k => (
               <div key={k.label} className="q-card q-analytics-kpi" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{k.label}</div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: k.color }}>{k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: k.color }}>{k.value ?? "–"}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{k.sub}</div>
               </div>
             ))}
@@ -888,7 +910,7 @@ function AnalyticsTab({ goals }) {
           {/* IF Tracker */}
           <IFTracker/>
 
-          <section className="q-card q-analytics-gauges"><Label>Durchschnitt · diese Woche</Label><div className="q-analytics-gauge-grid"><ProgressGauge label="Kalorien" value={avgWeekCal} goal={goals.calories} unit="kcal"/><ProgressGauge label="Protein" value={avgWeekProtein} goal={goals.protein}/></div></section>
+          <section className="q-card q-analytics-gauges"><Label>Durchschnitt · {completeWeek.length} vollständige Tage dieser Woche</Label>{completeWeek.length ? <div className="q-analytics-gauge-grid"><ProgressGauge label="Kalorien" value={avgWeekCal} goal={goals.calories} unit="kcal"/><ProgressGauge label="Protein" value={avgWeekProtein} goal={goals.protein}/></div> : <p className="q-analysis-basis">Noch keine vollständigen Tage in dieser Woche.</p>}</section>
 
           {/* Week bars */}
           <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
@@ -924,11 +946,11 @@ function AnalyticsTab({ goals }) {
                 const dateStr=`${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const color=getHeatmapColor(dateStr);
                 const isToday=dateStr===today();
-                return <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#fff", fontWeight:600 }}>{day}</div>;
+                return <button key={day} disabled={dateStr > today()} aria-label={`${dateStr}: ${dailyTotals[dateStr]?.status === "complete" ? "vollständig" : dailyTotals[dateStr] ? "unvollständig" : "kein Log"}`} onClick={() => setInspectDate(dateStr)} style={{ border: "none", minHeight: 0, padding: 0, aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#fff", fontWeight:600 }}>{day}</button>;
               })}
             </div>
             <div style={{ display:"flex", gap:10, marginTop:12, flexWrap:"wrap" }}>
-              {[[C.green,"Im Ziel"],[C.accent,"Nah dran"],["#555","Geloggt"],[C.border,"Kein Log"]].map(([c,l]) => (
+              {[[C.green,"Im Ziel"],[C.accent,"Nah dran"],[C.red,"Über Ziel"],["#b6a58a","Unvollständig"],[C.border,"Kein Log"]].map(([c,l]) => (
                 <div key={l} style={{ display:"flex", alignItems:"center", gap:4 }}>
                   <div style={{ width:10, height:10, borderRadius:2, background:c }}/>
                   <span style={{ fontSize:10, color:C.muted }}>{l}</span>
@@ -937,6 +959,7 @@ function AnalyticsTab({ goals }) {
             </div>
           </div>
 
+          {inspectDate && <DailyCompletion date={inspectDate} calories={dailyTotals[inspectDate]?.calories || 0} hasMeals={(dailyTotals[inspectDate]?.count || 0)>0} goal={goalOnDate(inspectDate,goalHistory,goals.calories)} onChange={record => setTrackingRecords(previous => [...previous.filter(item => item.date !== record.date), record])}/>}
           {/* Macro averages */}
           <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Monat</div>
@@ -944,7 +967,7 @@ function AnalyticsTab({ goals }) {
               <div key={l} style={{ marginBottom:14 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                   <span style={{ fontSize:13, color:C.mutedLight }}>{l}</span>
-                  <span style={{ fontSize:13, color:C.text }}>{v}{u} <span style={{ color:C.muted }}>/ {g}{u}</span></span>
+                  <span style={{ fontSize:13, color:C.text }}>{v ?? "–"}{u} <span style={{ color:C.muted }}>/ {g}{u}</span></span>
                 </div>
                 <div style={{ height:4, background:C.border, borderRadius:2 }}>
                   <div style={{ height:"100%", width:`${Math.min((v/g)*100,100)}%`, background:v>g?C.red:c, borderRadius:2 }}/>
@@ -957,25 +980,26 @@ function AnalyticsTab({ goals }) {
 
       {/* ── BODY SUB-TAB ── */}
       {subTab === "body" && (
-        <div style={{ animation: "fadeIn .2s ease" }}>
+        <div className="q-body-page" style={{ animation: "fadeIn .2s ease" }}>
           {/* Latest measurements */}
           {latest && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
               {bodyMetrics.map(m => {
-                const delta = latest && prev ? (latest[m.key] - prev[m.key]).toFixed(1) : null;
-                const isGoodDown = ["weight","waist","hip"].includes(m.key);
+                const delta = latest?.[m.key] != null && prev?.[m.key] != null && latest[m.key] > 0 && prev[m.key] > 0 ? (latest[m.key] - prev[m.key]).toFixed(1) : null;
+                const isGoodDown = ["weight","waist"].includes(m.key);
                 const positive = delta ? (isGoodDown ? parseFloat(delta)<0 : parseFloat(delta)>0) : null;
                 return (
-                  <div key={m.key} className="q-card" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+                  <div key={m.key} className="q-card q-body-kpi" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{m.label}</div>
                     <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: m.color }}>{latest[m.key]||"–"}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span></div>
-                    {delta && <div style={{ fontSize: 12, color: positive?C.green:C.red, marginTop: 2 }}>{parseFloat(delta)>0?"+":""}{delta}{m.unit}</div>}
+                    {delta && <div style={{ fontSize: 12, color: m.key === "hip" ? C.mutedLight : positive?C.green:C.red, marginTop: 2 }}>{parseFloat(delta)>0?"+":""}{delta}{m.unit}</div>}
                   </div>
                 );
               })}
             </div>
           )}
 
+          <p className="q-body-method">Oberarmumfang immer am selben Arm und an derselben Stelle messen – entspannt, ohne Pump. Bestehende Armwerte bleiben erhalten.</p>
           {/* Chart selector */}
           <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
@@ -987,7 +1011,7 @@ function AnalyticsTab({ goals }) {
                   background: activeChart===m.key?`${m.color}15`:"none",
                   color: activeChart===m.key?m.color:C.muted,
                   cursor: "pointer", fontSize: 10, fontFamily: "'DM Mono',monospace",
-                }}>{m.label}</button>
+                }}>{m.key === "hip" ? "Oberarm" : m.label}</button>
               ))}
             </div>
             {bodyMetrics.filter(m=>m.key===activeChart).map(m => (
@@ -1019,7 +1043,7 @@ function AnalyticsTab({ goals }) {
                   ))}
                 </div>
                 <button onClick={async () => {
-                  const entry = { date: localDate(new Date()), ...Object.fromEntries(Object.entries(measurementForm).map(([k,v])=>[k,parseFloat(v)||0])) };
+                  const entry = { date: localDate(new Date()), ...Object.fromEntries(Object.entries(measurementForm).map(([k,v])=>[k,v === "" ? null : parseFloat(v)])) };
                   const saved = await saveBodyMeasurement(entry);
                   if (saved) setBodyHistory(p => [...p, saved]);
                   setMeasurementForm({ weight:"", waist:"", chest:"", hip:"" });
@@ -1038,7 +1062,7 @@ function AnalyticsTab({ goals }) {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
-                    <tr>{["Datum","Gewicht","Bauch","Brust","Hüfte"].map(h => (
+                    <tr>{["Datum","Gewicht","Bauch","Brust","Oberarm"].map(h => (
                       <th key={h} style={{ color: C.muted, fontFamily: "'DM Mono',monospace", fontSize: 10, textAlign: "left", padding: "4px 8px 10px 0", fontWeight: 400, textTransform: "uppercase", letterSpacing: 1 }}>{h}</th>
                     ))}</tr>
                   </thead>
@@ -1091,13 +1115,13 @@ function AnalyticsTab({ goals }) {
               </div>
             ) : (
               <div>
-                <div style={{ color: C.muted, fontSize: 13, marginBottom: 14, lineHeight: 1.5 }}>Analysiere deinen Fortschritt — erhalte personalisierte Empfehlungen.</div>
+                <div style={{ color: C.muted, fontSize: 13, marginBottom: 14, lineHeight: 1.5 }}>Gewicht und Umfänge im Zusammenhang betrachten. Einzelne Messungen sind keine sichere Aussage über Fett oder Muskeln.</div>
                 <button onClick={async () => {
                   setBodyAnalyzing(true);
                   const sys = `Nutze keine Emojis in deinen Antworten. Du bist Personal Trainer und Ernährungsberater. Analysiere die Körperdaten und gib konkrete Empfehlungen.
 Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze","recommendations":["Tipp 1","Tipp 2","Tipp 3"],"calorieAdjustment":"erhöhen|beibehalten|reduzieren","calorieReason":"kurze Begründung"}`;
                   try {
-                    const raw = await callClaude(sys, "Körperdaten: " + JSON.stringify(bodyHistory.slice(-6)) + " Aktuelles Kalorienziel: " + goals.calories);
+                    const raw = await callClaude(sys, "Körperdaten (Feld hip bezeichnet den Oberarmumfang in cm, NICHT die Hüfte; Gewichts- und Umfangsänderungen allein belegen keine Fett-/Muskeländerung): " + JSON.stringify(bodyHistory.slice(-6)) + " Aktuelles Kalorienziel: " + goals.calories);
                     setBodyAnalysis(JSON.parse(raw));
                   } catch(e) { console.error(e); }
                   setBodyAnalyzing(false);
@@ -1390,7 +1414,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>⏰ Es ist gerade {timeOfDay} ({hour} Uhr)</div>
+          <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>Es ist gerade {timeOfDay} ({hour} Uhr)</div>
         </div>
       )}
 
@@ -1398,7 +1422,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       {mode === "inspo" && (
         <div className="q-card" style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeIn .2s ease" }}>
           <div style={{ fontSize: 13, color: C.mutedLight }}>Planen für</div>
-          <input type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
+          <input type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "light" }}/>
         </div>
       )}
 
@@ -1558,7 +1582,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(today());
 
-  const dateStr = new Date().toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" }).toUpperCase();
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -1610,15 +1633,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingBottom: 140 }}>
-      {/* Header */}
-      <div style={{ padding: "44px 20px 16px" }}>
-        <div style={{ color: C.muted, fontSize: 11, fontFamily: "'DM Mono',monospace", letterSpacing: 2 }}>{dateStr}</div>
-        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 32, letterSpacing: 2, marginTop: 2 }}>
-          Philipp's <span style={{ color: C.accent }}>Nutrition</span>
-        </div>
-      </div>
-
+    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingTop: "max(20px, env(safe-area-inset-top))", paddingBottom: 140 }}>
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
