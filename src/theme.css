@@ -59,3 +59,36 @@ input[type=email], input[type=password] { background: #f4f5f4; width: 100%; }
 .nutrition-nav button { border-radius: 24px; }
 .nutrition-nav button[style*="margin-top: -24px"] { background: linear-gradient(145deg,#b5c7cd,#8da6b1) !important; box-shadow: 0 4px 14px #0e202c30, inset 0 1px 0 #fff8 !important; margin-top: -18px !important; width: 56px !important; height: 56px !important; flex-basis: 56px !important; }
 @media (max-width: 360px) { .q-gauge-value span { display: block; margin-top: 3px; } .q-macro-grid { gap: 5px; } }
+
+/* Shared pill controls and in-flow account settings. */
+button { border-radius: 999px !important; min-height: 38px; }
+button:disabled { opacity: .48; cursor: not-allowed !important; }
+@media (hover:hover) { button:not(:disabled):hover { filter: brightness(.96); box-shadow: inset 0 1px 0 #ffffff30; } }
+.nutrition-settings, .nutrition-settings[open] { position: static; width: 100%; max-height: none; margin: 0 0 18px; padding: 12px; border: 1px solid #dce2e0; border-radius: 20px; background: #fff; box-shadow: 0 4px 18px #23343a05; }
+.nutrition-settings > summary { text-align: left; padding: 11px 14px; background: linear-gradient(120deg,#e4ebed,#f3f6f6); color: #40565f; }
+.nutrition-settings > div { background: transparent !important; text-align: left !important; }
+.q-analytics-kpi { background: radial-gradient(ellipse at 0 0,#cedde066,transparent 70%),linear-gradient(135deg,#8ca3ac,#738c97) !important; box-shadow: inset 0 1px 0 #fff6,0 0 0 5px #fff !important; border: 1px solid #fff3 !important; margin: 5px; }
+.q-analytics-kpi > div { color: #fff !important; }
+.q-analytics-kpi span { color: #e2ecef !important; }
+.q-analytics-kpi > div:first-child,.q-analytics-kpi > div:last-child { color: #edf3f5 !important; }
+.q-analytics-gauges { padding: 16px; margin-bottom: 16px; border-radius: 20px; background: #fff; }
+.q-analytics-gauge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.q-analytics-gauge-grid .q-gauge svg { max-width: 150px; margin: auto; }
+.q-analytics-page .q-card:not(.q-analytics-kpi), .q-scan-page .q-card { background-image: linear-gradient(135deg,#ffffff,#f4f7f7) !important; }
+.q-quick-adds { padding: 16px 12px; border-radius: 20px; margin-bottom: 16px; }
+.q-quick-list { display: grid; gap: 6px; margin-top: 12px; }
+.q-quick-row { display: flex; gap: 6px; }
+.q-quick-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 1px solid #dce5e7; background: linear-gradient(120deg,#e8eff1,#f5f8f8); color: #334b55; padding: 8px 14px; text-align: left; }
+.q-quick-main > span:first-of-type { flex: 1; font-size: 12px; }
+.q-quick-main small { display: block; color: #6c8189; font-size: 10px; margin-top: 3px; }
+.q-quick-main > span:last-child { font-size: 20px; }
+.q-pin, .q-pin-recipe { border: 1px solid #dce5e7; background: #f0f4f5; color: #6c8189; padding: 8px 12px; }
+.q-pin[aria-pressed=true], .q-pin-recipe[aria-pressed=true] { background: #526e7a; color: #fff; }
+.q-pin-recipe { font-size: 12px; margin-bottom: 14px; }
+.q-inline-message { color: #526e7a; font-size: 12px; margin-bottom: 12px; }
+.q-clarifications { padding: 16px; border-radius: 16px; background: radial-gradient(ellipse at top left,#eef5f6,#dbe6e9); margin-bottom: 18px; border: 1px solid #d4e0e4; }
+.q-question { margin: 12px 0; }
+.q-question p { font-size: 13px; margin-bottom: 8px; color: #334b55; }
+.q-answer-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.q-answer-buttons button { border: 1px solid #c7d6dc; background: #f6f9fa; padding: 9px 16px; color: #405c69; }
+.q-answer-buttons button[aria-pressed=true] { background: #526e7a; color: #fff; border-color: #526e7a; }

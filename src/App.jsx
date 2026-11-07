@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import { supabase } from "./supabase";
 import { authFetch } from "./authFetch";
 import { SCAN_PROMPT, normalizeScan, resizeComponent, prepareFoodImage } from "./scan.js";
 import "./theme.css";
 import Icon from "./Icon.jsx";
+import { AccountSettingsContext } from "./AccountSettingsContext";
+import { quickRecipes, readPinned } from "./quickAdds.js";
 import { ProgressGauge, TargetScale } from "./ProgressGauge.jsx";
 
 const C = {
@@ -252,7 +254,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
         {showAdd && (
           <div style={{ marginBottom: 12, animation: "fadeIn .2s ease" }}>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rezept suchen…"
-              autoFocus style={{
+              style={{
                 width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
                 padding: "10px 12px", color: C.text, fontFamily: "'DM Sans',sans-serif",
                 fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 6,
@@ -295,6 +297,34 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
 
 // ── AI SCAN TAB ───────────────────────────────────────────────────────────────
 function ScanTab({ onAdd }) {
+  const { userId } = useContext(AccountSettingsContext);
+  const pinsKey = `nutrition:pinned-recipes:v1:${userId}`;
+  const [pinned, setPinned] = useState(() => readPinned(pinsKey));
+  const [recentMeals, setRecentMeals] = useState([]);
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickMessage, setQuickMessage] = useState("");
+  const [answers, setAnswers] = useState({});
+  const analysisInput = useRef(null);
+  const togglePinned = id => {
+    const next = pinned.includes(id) ? pinned.filter(value => value !== id) : [id, ...pinned].slice(0, 5);
+    setPinned(next);
+    try { localStorage.setItem(pinsKey, JSON.stringify(next)); } catch { setQuickMessage("Anheften ist in diesem Browser nur für diese Sitzung möglich."); }
+  };
+  const refreshRecent = async () => {
+    const { data } = await supabase.from("meals").select("name,created_at").order("created_at", { ascending: false }).limit(150);
+    setRecentMeals(data || []);
+  };
+  const addQuick = async recipe => {
+    if (quickBusy) return;
+    setQuickBusy(true); setQuickMessage("");
+    try {
+      const saved = await onAdd({ ...recipe, estimated: false, date: scanDate, meal_time: `${scanDate}T${scanTime}:00` }, { stay: true });
+      if (!saved) throw new Error("Speichern fehlgeschlagen.");
+      setQuickMessage(`${recipe.name} hinzugefügt.`);
+      await refreshRecent();
+    } catch { setQuickMessage("Konnte nicht gespeichert werden. Bitte erneut versuchen."); }
+    finally { setQuickBusy(false); }
+  };
   const [mode, setMode] = useState(null); // "ai"|"notion"|"manual"
   const [scanDate, setScanDate] = useState(today());
   const [scanTime, setScanTime] = useState(() => { const n = new Date(); return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; });
@@ -321,9 +351,10 @@ function ScanTab({ onAdd }) {
 
   const switchMode = (m) => {
     setMode(m); setResult(null); setText(""); setImageB64(null); setImagePreview(null);
-    setSelectedRecipe(null); setRecipeNote("");
+    setSelectedRecipe(null); setRecipeNote(""); setAnswers({}); setQuickMessage("");
     if (m === "notion" && recipes.length === 0) {
       setLoadingRecipes(true);
+      void refreshRecent();
       loadNotionRecipes().then(data => { setRecipes(data); setLoadingRecipes(false); });
     }
   };
@@ -348,15 +379,20 @@ function ScanTab({ onAdd }) {
     rec.onend = () => setRecording(false); rec.start(); recognitionRef.current = rec; setRecording(true);
   };
 
-  const analyzeAI = async () => {
-    if (!text.trim() && !imageB64) return;
-    setLoading(true); setResult(null);
-    setScanError("");
+  const analyzeAI = async (refine = false) => {
+    if (!text.trim() && !imageB64 && !refine) return;
+    const input = refine ? analysisInput.current : { text: text.trim(), image: imageB64 };
+    if (!input) return;
+    if (!refine) { analysisInput.current = input; setAnswers({}); }
+    const followup = refine ? (result.questions || []).map(question => `${question.question} ${answers[question.id] ? "Ja" : "Nein"}`).join("\n") : "";
+    setLoading(true); setResult(null); setScanError("");
     try {
-      const raw = await callClaude(SCAN_PROMPT, text.trim() || "Analysiere die gesamte gezeigte Portion. Mengen sind unbekannt; benenne deine Annahmen.", imageB64);
-      setResult(normalizeScan(JSON.parse(raw)));
+      const prompt = (input.text || "Analysiere die gesamte gezeigte Portion. Mengen sind unbekannt; benenne deine Annahmen.") + (refine ? `\nBestätigte Antworten zur ursprünglichen Mahlzeit:\n${followup}\nErstelle die aktualisierte vollständige Schätzung. Stelle keine weiteren Fragen.` : "");
+      const raw = await callClaude(SCAN_PROMPT, prompt, input.image);
+      const next = normalizeScan(JSON.parse(raw));
+      setResult(refine ? { ...next, questions: [] } : next);
     } catch(e) { setScanError(e.message || "Analyse fehlgeschlagen. Bitte versuche es erneut."); }
-    setLoading(false);
+    finally { setLoading(false); }
   };
 
   const adjustRecipe = async () => {
@@ -384,14 +420,15 @@ Passe die Nährwerte entsprechend an.`;
   };
 
   const confidenceColor = { hoch: C.green, mittel: C.fat, niedrig: C.red };
+  const quickAdds = quickRecipes(recipes, recentMeals, pinned);
   const filteredRecipes = recipes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div style={{ animation: "fadeIn .3s ease" }}>
+    <div className="q-scan-page" style={{ animation: "fadeIn .3s ease" }}>
       <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
         Mahlzeit <span style={{ color: C.accent }}>hinzufügen</span>
       </div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Wähle wie du einloggen möchtest</div>
+      <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Wähle, wie du deine Mahlzeit erfassen möchtest</div>
 
       {/* Date + Time selector */}
       <div className="q-card" style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: "14px 16px", marginBottom: 16 }}>
@@ -467,7 +504,7 @@ Passe die Nährwerte entsprechend an.`;
             </div>
           </div>
 
-          <button onClick={analyzeAI} disabled={loading || preparingImage || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
+          <button onClick={() => analyzeAI()} disabled={loading || preparingImage || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
             {loading ? "KI analysiert…" : "Nährwerte schätzen"}
           </button>
 
@@ -487,6 +524,11 @@ Passe die Nährwerte entsprechend an.`;
                   </div>
                 ))}
               </div>
+              {result.questions?.length > 0 && <section className="q-clarifications">
+                <Label>Kurz genauer · optional</Label>
+                {result.questions.map(question => <div key={question.id} className="q-question"><p>{question.question}</p><div className="q-answer-buttons">{[[true,"Ja"],[false,"Nein"]].map(([value,label]) => <button key={label} aria-pressed={answers[question.id] === value} onClick={() => setAnswers(previous => ({ ...previous, [question.id]: value }))}>{label}</button>)}</div></div>)}
+                <div className="q-answer-buttons"><button disabled={!result.questions.every(question => typeof answers[question.id] === "boolean")} onClick={() => analyzeAI(true)}>Schätzung aktualisieren</button><button onClick={() => { setResult(previous => ({ ...previous, questions: [] })); setAnswers({}); }}>Überspringen</button></div>
+              </section>}
               {result.components?.length > 0 && <div style={{ marginBottom: 16 }}>
                 <Label>Erkannt · Mengen prüfen</Label>
                 {result.components.map((item, index) => <label key={index} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
@@ -499,7 +541,7 @@ Passe die Nährwerte entsprechend an.`;
               {result.calorie_range && <p style={{ color: C.muted, fontSize: 12, marginBottom: 12 }}>Geschätzter Bereich: {result.calorie_range.min}–{result.calorie_range.max} kcal</p>}
               {result.note && <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 10 }}>{result.note}</div>}
               <div style={{ display: "flex", gap: 10 }}>
-                <button style={{ flex: 1, background: C.accent, color: "#fff", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true, date: scanDate, meal_time: `${scanDate}T${scanTime}:00` })}>Zum Log →</button>
+                <button style={{ flex: 1, background: C.accent, color: "#fff", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} disabled={result.questions?.length > 0 && Object.keys(answers).length > 0} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true, date: scanDate, meal_time: `${scanDate}T${scanTime}:00` })}>Zum Log →</button>
                 <button style={{ background: C.card, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 12, padding: "13px 16px", cursor: "pointer", fontSize: 13 }} onClick={() => { setResult(null); setText(""); setImageB64(null); setImagePreview(null); }}>Neu</button>
               </div>
             </div>
@@ -512,7 +554,15 @@ Passe die Nährwerte entsprechend an.`;
         <div style={{ animation: "fadeIn .2s ease" }}>
           {!selectedRecipe ? (
             <>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rezept suchen…" autoFocus style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", boxSizing: "border-box", marginBottom: 12 }}/>
+              {quickAdds.length > 0 && !search && <section className="q-card q-quick-adds">
+                <Label>Quick Add · angeheftet & zuletzt genutzt</Label>
+                <div className="q-quick-list">{quickAdds.map(recipe => <div key={recipe.id} className="q-quick-row">
+                  <button className="q-quick-main" disabled={quickBusy} onClick={() => addQuick(recipe)} aria-label={`${recipe.name} direkt hinzufügen`}><Icon name="utensils" size={16}/><span>{recipe.name}<small>{recipe.calories} kcal · 1 Portion</small></span><span aria-hidden="true">+</span></button>
+                  <button className="q-pin" aria-label={`${recipe.name} ${pinned.includes(recipe.id) ? "lösen" : "anheften"}`} aria-pressed={pinned.includes(recipe.id)} onClick={() => togglePinned(recipe.id)}><Icon name="target" size={16}/></button>
+                </div>)}</div>
+              </section>}
+              {quickMessage && <p role="status" className="q-inline-message">{quickMessage}</p>}
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rezept suchen…" style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", color: C.text, fontFamily: "'DM Sans',sans-serif", fontSize: 16, outline: "none", boxSizing: "border-box", marginBottom: 12 }}/>
               {loadingRecipes && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: 20 }}>Lade Rezepte aus Notion…</div>}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {filteredRecipes.map(r => (
@@ -539,6 +589,7 @@ Passe die Nährwerte entsprechend an.`;
               <button onClick={() => setSelectedRecipe(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, marginBottom: 14, padding: 0 }}>← Zurück</button>
               <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}`, marginBottom: 14 }}>
                 <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color: C.text, marginBottom: 12 }}>{selectedRecipe.name}</div>
+                <button className="q-pin-recipe" aria-pressed={pinned.includes(selectedRecipe.id)} onClick={() => togglePinned(selectedRecipe.id)}><Icon name="target" size={16}/> {pinned.includes(selectedRecipe.id) ? "Aus Quick Add lösen" : "Als Quick Add anheften"}</button>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   {[["kcal", selectedRecipe.calories, C.accent], ["P", selectedRecipe.protein+"g", C.protein], ["C", selectedRecipe.carbs+"g", C.carbs], ["F", selectedRecipe.fat+"g", C.fat]].map(([l,v,col]) => (
                     <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
@@ -826,7 +877,7 @@ function AnalyticsTab({ goals }) {
               { label: "Log-Streak", value: streak, unit: "Tage", color: C.carbs, sub: "in Folge" },
               { label: "Protein-Ziel", value: proteinGoalDays, unit: "Tage", color: C.green, sub: `von ${loggedDays} geloggt` },
             ].map(k => (
-              <div key={k.label} className="q-card" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+              <div key={k.label} className="q-card q-analytics-kpi" style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{k.label}</div>
                 <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: k.color }}>{k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{k.sub}</div>
@@ -837,27 +888,7 @@ function AnalyticsTab({ goals }) {
           {/* IF Tracker */}
           <IFTracker/>
 
-          {/* Two Rings */}
-          <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Diese Woche</div>
-            <div style={{ display: "flex", justifyContent: "space-around" }}>
-              {[[avgWeekCal, goals.calories, C.accent, "kcal", "Kalorien"], [avgWeekProtein, goals.protein, C.protein, "g", "Protein"]].map(([val, goal, color, unit, label]) => (
-                <div key={label} style={{ textAlign: "center" }}>
-                  <div style={{ position: "relative", display: "inline-block" }}>
-                    <Ring value={val} goal={goal} color={color} size={110} sw={10}/>
-                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color, lineHeight: 1 }}>{goal>0?Math.round((val/goal)*100):0}%</div>
-                      <div style={{ fontSize: 10, color: C.muted }}>{label}</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: C.text }}>{val}{unit}</div>
-                    <div style={{ fontSize: 11, color: C.muted }}>/ {goal}{unit}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <section className="q-card q-analytics-gauges"><Label>Durchschnitt · diese Woche</Label><div className="q-analytics-gauge-grid"><ProgressGauge label="Kalorien" value={avgWeekCal} goal={goals.calories} unit="kcal"/><ProgressGauge label="Protein" value={avgWeekProtein} goal={goals.protein}/></div></section>
 
           {/* Week bars */}
           <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
@@ -1520,6 +1551,7 @@ function GoalsTab({ goals, setGoals }) {
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const { settings } = useContext(AccountSettingsContext);
   const [tab, setTab] = useState("today");
   const [logged, setLogged] = useState([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
@@ -1556,10 +1588,11 @@ export default function App() {
     loadTodayMeals(selectedDate).then(meals => setLogged(meals));
   }, [selectedDate]);
 
-  const handleAddFromScan = async (meal) => {
+  const handleAddFromScan = async (meal, options = {}) => {
     const saved = await saveMeal(meal);
-    if (saved) setLogged(p => [...p, saved]);
-    setTab("today");
+    if (saved && meal.date === selectedDate) setLogged(p => [...p, saved]);
+    if (saved && !options.stay) setTab("today");
+    return saved;
   };
 
   const navItems = [
@@ -1590,8 +1623,8 @@ export default function App() {
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "coach" && <CoachTab goals={goals} logged={logged}/>}
-        {tab === "week" && <AnalyticsTab goals={goals}/>}
-        {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
+        {tab === "week" && <div className="q-analytics-page"><AnalyticsTab goals={goals}/></div>}
+        {tab === "goals" && <>{settings}<GoalsTab goals={goals} setGoals={setGoals}/></>}
       </div>
 
       {/* Bottom Nav */}

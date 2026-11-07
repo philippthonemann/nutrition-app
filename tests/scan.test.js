@@ -22,3 +22,9 @@ test('invalid scans cannot become zero-calorie logged meals', () => {
     assert.throws(() => normalizeScan(value));
   }
 });
+test('follow-up questions are optional, bounded to two, and assigned distinct identifiers', () => {
+  const result = normalizeScan({ ...meal, questions: [{ id: 'oil', question: 'War Öl dabei?' }, { id: 'oil', question: 'War es frittiert?' }, { question: 'Dritte Frage?' }] });
+  assert.equal(result.questions.length, 2);
+  assert.notEqual(result.questions[0].id, result.questions[1].id);
+  assert.deepEqual(normalizeScan(meal).questions, []);
+});
