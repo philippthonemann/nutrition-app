@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { SUPABASE_URL, SUPABASE_KEY } from '../lib/supabase-config.js';
 
-const panel = { background: '#111', color: '#f0f0f0', border: '1px solid #333', borderRadius: 12, padding: 24, width: '100%', maxWidth: 390 };
-const button = { padding: '12px 16px', borderRadius: 8, border: 0, background: '#c8f135', color: '#080808', cursor: 'pointer' };
+const panel = { background: '#fff', color: '#273437', border: '1px solid #dce2e0', borderRadius: 12, padding: 24, width: '100%', maxWidth: 390 };
+const button = { padding: '12px 16px', borderRadius: 8, border: 0, background: '#293e40', color: '#fff', cursor: 'pointer' };
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ loading: true, user: null, error: '' });
@@ -100,7 +100,9 @@ export default function AuthGate({ children }) {
   }
 
   if (state.user) return <div key={state.user.id}>
-    <div style={{ background: '#080808', padding: 12, textAlign: 'right' }}>
+    <details className="nutrition-settings">
+      <summary aria-label="Einstellungen öffnen">Einstellungen</summary>
+    <div style={{ background: '#f4f5f4', padding: 12, textAlign: 'right' }}>
       <button style={{ ...button, marginRight: 8 }} onClick={() => { setShowPasswordSetup(!showPasswordSetup); setPasswordMessage(''); }}>Passwort festlegen</button>
       <button style={button} onClick={async () => {
         setState({ loading: false, user: null, error: '' });
@@ -119,12 +121,13 @@ export default function AuthGate({ children }) {
       </form>
       <p role="status">{passwordMessage}</p>
     </section>}
+    </details>
     {children}
   </div>;
 
-  return <main style={{ minHeight: '100vh', background: '#080808', display: 'grid', placeItems: 'center', padding: 20, fontFamily: 'sans-serif' }}>
+  return <main style={{ minHeight: '100vh', background: '#f4f5f4', display: 'grid', placeItems: 'center', padding: 20, fontFamily: 'sans-serif' }}>
     <section style={panel}>
-      <h1 style={{ color: '#c8f135' }}>Nutrition</h1>
+      <h1 style={{ color: '#293e40' }}>Nutrition</h1>
       {state.loading ? <p>Sitzung wird geprüft…</p> : <>
         <p>Deine private Nutrition-App. Melde dich mit deinem freigeschalteten Konto an.</p>
         {state.error && <p role="alert">{state.error}</p>}

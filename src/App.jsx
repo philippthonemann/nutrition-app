@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import { authFetch } from "./authFetch";
+import { SCAN_PROMPT, normalizeScan, resizeComponent, prepareFoodImage } from "./scan.js";
+import "./theme.css";
 
 const C = {
-  bg: "#080808", surface: "#111", card: "#161616", border: "#222",
-  accent: "#c8f135", accentDim: "#8fb520",
-  protein: "#ff6b35", carbs: "#4fc3f7", fat: "#ffd54f",
-  text: "#f0f0f0", muted: "#555", mutedLight: "#888",
+  bg: "#f4f5f4", surface: "#eef0ef", card: "#ffffff", border: "#dce2e0",
+  accent: "#293e40", accentDim: "#526a6b",
+  protein: "#b76445", carbs: "#4c7c95", fat: "#9b7933",
+  text: "#273437", muted: "#647174", mutedLight: "#536367",
   green: "#4ade80", red: "#f87171",
 };
 
@@ -16,10 +18,10 @@ const DEFAULT_GOALS = {
 };
 
 const GOAL_META = [
-  { key: "calories", label: "Kalorien", unit: "kcal", color: "#c8f135", icon: "🔥" },
+  { key: "calories", label: "Kalorien", unit: "kcal", color: "#293e40", icon: "🔥" },
   { key: "protein",  label: "Protein",  unit: "g",    color: "#ff6b35", icon: "💪" },
-  { key: "carbs",    label: "Carbs",    unit: "g",    color: "#4fc3f7", icon: "🌾" },
-  { key: "fat",      label: "Fett",     unit: "g",    color: "#ffd54f", icon: "🥑" },
+  { key: "carbs",    label: "Carbs",    unit: "g",    color: "#4c7c95", icon: "🌾" },
+  { key: "fat",      label: "Fett",     unit: "g",    color: "#9b7933", icon: "🥑" },
   { key: "fiber",    label: "Ballaststoffe", unit: "g", color: "#a78bfa", icon: "🥦" },
   { key: "sugar",    label: "Zucker",   unit: "g",    color: "#f472b6", icon: "🍬" },
   { key: "sodium",   label: "Natrium",  unit: "mg",   color: "#94a3b8", icon: "🧂" },
@@ -134,7 +136,7 @@ function Btn({ children, onClick, accent, full, small, disabled, style: sx = {} 
     <button onClick={onClick} disabled={disabled} style={{
       width: full ? "100%" : undefined,
       background: accent ? C.accent : C.card,
-      color: accent ? "#000" : C.mutedLight,
+      color: accent ? "#fff" : C.mutedLight,
       border: `1px solid ${accent ? "transparent" : C.border}`,
       borderRadius: small ? 8 : 12,
       padding: small ? "7px 14px" : "13px 20px",
@@ -166,6 +168,7 @@ async function callClaude(system, userContent, imageBase64 = null) {
     })
   });
   const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error?.message || data.error || "Die KI ist derzeit nicht verfügbar.");
   const text = data.content?.find(b => b.type === "text")?.text || "";
   return text.replace(/```json|```/g, "").trim();
 }
@@ -217,7 +220,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, background: C.card, borderRadius: 14, padding: "10px 16px", border: `1px solid ${C.border}` }}>
         <button onClick={() => changeDate(-1)} style={{ background: "none", border: "none", color: C.mutedLight, cursor: "pointer", fontSize: 20, padding: "0 8px" }}>‹</button>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: isToday ? C.accent : C.text, letterSpacing: 1 }}>{formatDate(selectedDate)}</div>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: isToday ? C.accent : C.text, letterSpacing: 1 }}>{formatDate(selectedDate)}</div>
           {!isToday && <div style={{ fontSize: 11, color: C.muted }}>{selectedDate}</div>}
         </div>
         <button onClick={() => changeDate(1)} disabled={isToday} style={{ background: "none", border: "none", color: isToday ? C.border : C.mutedLight, cursor: isToday ? "default" : "pointer", fontSize: 20, padding: "0 8px" }}>›</button>
@@ -227,7 +230,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <Label>Kalorien heute</Label>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 54, lineHeight: 1, color: C.text }}>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 54, lineHeight: 1, color: C.text }}>
               {totals.calories}<span style={{ fontSize: 18, color: C.muted, marginLeft: 4 }}>/ {goals.calories}</span>
             </div>
             <div style={{ color: totals.calories > goals.calories ? C.red : C.accent, fontSize: 13, marginTop: 4 }}>
@@ -241,7 +244,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
           <div style={{ position: "relative" }}>
             <Ring value={totals.calories} goal={goals.calories} color={totals.calories > goals.calories ? C.red : C.accent} size={76} sw={7}/>
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: C.text }}>{Math.round(calPct)}%</div>
+              fontFamily: "'DM Sans',sans-serif", fontSize: 15, color: C.text }}>{Math.round(calPct)}%</div>
           </div>
         </div>
         <div style={{ marginTop: 14, height: 3, background: C.border, borderRadius: 2 }}>
@@ -255,7 +258,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
           <div key={l} style={{ flex: 1, background: C.card, borderRadius: 14, padding: "14px 12px", border: `1px solid ${C.border}` }}>
             <Label>{l}</Label>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: C.text }}>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, color: C.text }}>
                 {v}<span style={{ fontSize: 12, color: C.muted }}>g</span>
               </div>
               <Ring value={v} goal={g} color={col} size={36} sw={4}/>
@@ -270,9 +273,9 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
       {/* Meal log */}
       <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>Mahlzeiten</div>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 1 }}>Mahlzeiten</div>
           <button onClick={onOpenScan} style={{
-            background: C.accent, color: "#000", border: "none", borderRadius: 8,
+            background: C.accent, color: "#fff", border: "none", borderRadius: 8,
             width: 28, height: 28, fontSize: 20, cursor: "pointer", fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>+</button>
@@ -295,7 +298,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
                   <div style={{ fontSize: 13, color: C.text }}>{r.name}</div>
                   <div style={{ fontSize: 11, color: C.muted }}>P{r.protein} C{r.carbs} F{r.fat}</div>
                 </div>
-                <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, alignSelf: "center" }}>{r.calories}</div>
+                <div style={{ color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 16, alignSelf: "center" }}>{r.calories}</div>
               </div>
             ))}
           </div>
@@ -310,7 +313,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
                 {m.estimated && <span style={{ fontSize: 10, color: C.accent, marginTop: 2, display: "block" }}>~ KI-Schätzung</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{m.calories}</div>
+                <div style={{ color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18 }}>{m.calories}</div>
                 <button onClick={() => handleRemove(m.id)}
                   style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18 }}>×</button>
               </div>
@@ -329,6 +332,8 @@ function ScanTab({ onAdd }) {
   const [text, setText] = useState("");
   const [imageB64, setImageB64] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [scanError, setScanError] = useState("");
+  const [preparingImage, setPreparingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [recording, setRecording] = useState(false);
@@ -354,11 +359,15 @@ function ScanTab({ onAdd }) {
     }
   };
 
-  const handleImage = (e) => {
+  const handleImage = async (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { setImagePreview(ev.target.result); setImageB64(ev.target.result.split(",")[1]); };
-    reader.readAsDataURL(file);
+    setPreparingImage(true); setScanError(""); setResult(null);
+    setImageB64(null); setImagePreview(null);
+    try {
+      const dataUrl = await prepareFoodImage(file);
+      setImagePreview(dataUrl); setImageB64(dataUrl.split(",")[1]);
+    } catch (error) { setScanError(error.message); }
+    finally { setPreparingImage(false); e.target.value = ""; }
   };
 
   const toggleVoice = () => {
@@ -373,13 +382,11 @@ function ScanTab({ onAdd }) {
   const analyzeAI = async () => {
     if (!text.trim() && !imageB64) return;
     setLoading(true); setResult(null);
-    const sys = `Du bist Ernährungsexperte. Schätze die Nährwerte der Mahlzeit basierend auf allen verfügbaren Infos.
-Antworte NUR mit JSON: {"name":"...","calories":X,"protein":X,"carbs":X,"fat":X,"confidence":"hoch|mittel|niedrig","note":"..."}`;
+    setScanError("");
     try {
-      const raw = await callClaude(sys, text.trim() || "Schätze die Nährwerte.", imageB64);
-      
-      setResult(JSON.parse(raw));
-    } catch(e) { console.error("Scan error:", e, e.message); setResult({ name: "Fehler", calories: 0, protein: 0, carbs: 0, fat: 0, note: e.message || "Analyse fehlgeschlagen" }); }
+      const raw = await callClaude(SCAN_PROMPT, text.trim() || "Analysiere die gesamte gezeigte Portion. Mengen sind unbekannt; benenne deine Annahmen.", imageB64);
+      setResult(normalizeScan(JSON.parse(raw)));
+    } catch(e) { setScanError(e.message || "Analyse fehlgeschlagen. Bitte versuche es erneut."); }
     setLoading(false);
   };
 
@@ -412,7 +419,7 @@ Passe die Nährwerte entsprechend an.`;
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
         Mahlzeit <span style={{ color: C.accent }}>hinzufügen</span>
       </div>
       <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Wähle wie du einloggen möchtest</div>
@@ -473,7 +480,7 @@ Passe die Nährwerte entsprechend an.`;
                 ? <button onClick={() => { setImageB64(null); setImagePreview(null); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12 }}>Entfernen</button>
                 : <button onClick={() => fileRef.current.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}`, color: C.accent, borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+ Foto</button>}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleImage}/>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImage}/>
             {imagePreview && <div style={{ padding: "0 14px 14px" }}><img src={imagePreview} alt="food" style={{ width: "100%", borderRadius: 10, maxHeight: 180, objectFit: "cover" }}/></div>}
           </div>
 
@@ -491,27 +498,39 @@ Passe die Nährwerte entsprechend an.`;
             </div>
           </div>
 
-          <button onClick={analyzeAI} disabled={loading || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#000", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
+          <button onClick={analyzeAI} disabled={loading || preparingImage || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
             {loading ? "KI analysiert…" : "Nährwerte schätzen"}
           </button>
 
+          {preparingImage && <p role="status" style={{ color: C.muted }}>Foto wird vorbereitet…</p>}
+          {scanError && <p role="alert" style={{ color: C.red, marginBottom: 16 }}>{scanError}</p>}
           {result && (
             <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, animation: "fadeIn .4s ease" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.text, flex: 1, paddingRight: 10 }}>{result.name}</div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color: C.text, flex: 1, paddingRight: 10 }}>{result.name}</div>
                 {result.confidence && <span style={{ fontSize: 11, fontFamily: "'DM Mono',monospace", flexShrink: 0, color: confidenceColor[result.confidence] || C.muted, border: `1px solid ${confidenceColor[result.confidence] || C.muted}`, borderRadius: 6, padding: "3px 8px" }}>{result.confidence}</span>}
               </div>
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                 {[["kcal", result.calories, C.accent], ["Protein", result.protein+"g", C.protein], ["Carbs", result.carbs+"g", C.carbs], ["Fett", result.fat+"g", C.fat]].map(([l,v,col]) => (
                   <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: col }}>{v}</div>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: col }}>{v}</div>
                     <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
                   </div>
                 ))}
               </div>
+              {result.components?.length > 0 && <div style={{ marginBottom: 16 }}>
+                <Label>Erkannt · Mengen prüfen</Label>
+                {result.components.map((item, index) => <label key={index} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ flex: 1, fontSize: 13 }}>{item.name}</span>
+                  <input aria-label={`${item.name} in Gramm`} type="number" min="1" max="10000" value={item.grams} onChange={event => { const grams = Number(event.target.value); if (grams > 0) setResult(previous => resizeComponent(previous, index, grams)); }} style={{ width: 76, padding: 8, border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface, color: C.text }} />
+                  <span style={{ color: C.muted, fontSize: 12 }}>g</span>
+                </label>)}
+                <p style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>Foto-Schätzung, keine Messung. Gramm ändern berechnet die Nährwerte neu. Für andere Zutaten: Hinweise ergänzen und erneut analysieren.</p>
+              </div>}
+              {result.calorie_range && <p style={{ color: C.muted, fontSize: 12, marginBottom: 12 }}>Geschätzter Bereich: {result.calorie_range.min}–{result.calorie_range.max} kcal</p>}
               {result.note && <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 14, borderLeft: `2px solid ${C.accent}`, paddingLeft: 10 }}>{result.note}</div>}
               <div style={{ display: "flex", gap: 10 }}>
-                <button style={{ flex: 1, background: C.accent, color: "#000", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true, date: scanDate, meal_time: `${scanDate}T${scanTime}:00` })}>Zum Log →</button>
+                <button style={{ flex: 1, background: C.accent, color: "#fff", border: "none", borderRadius: 12, padding: "13px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onAdd({ ...result, id: Date.now(), estimated: true, date: scanDate, meal_time: `${scanDate}T${scanTime}:00` })}>Zum Log →</button>
                 <button style={{ background: C.card, border: `1px solid ${C.border}`, color: C.mutedLight, borderRadius: 12, padding: "13px 16px", cursor: "pointer", fontSize: 13 }} onClick={() => { setResult(null); setText(""); setImageB64(null); setImagePreview(null); }}>Neu</button>
               </div>
             </div>
@@ -550,11 +569,11 @@ Passe die Nährwerte entsprechend an.`;
             <div style={{ animation: "fadeIn .2s ease" }}>
               <button onClick={() => setSelectedRecipe(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, marginBottom: 14, padding: 0 }}>← Zurück</button>
               <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}`, marginBottom: 14 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.text, marginBottom: 12 }}>{selectedRecipe.name}</div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color: C.text, marginBottom: 12 }}>{selectedRecipe.name}</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   {[["kcal", selectedRecipe.calories, C.accent], ["P", selectedRecipe.protein+"g", C.protein], ["C", selectedRecipe.carbs+"g", C.carbs], ["F", selectedRecipe.fat+"g", C.fat]].map(([l,v,col]) => (
                     <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
-                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: col }}>{v}</div>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: col }}>{v}</div>
                       <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
                     </div>
                   ))}
@@ -572,7 +591,7 @@ Passe die Nährwerte entsprechend an.`;
                 </div>
               </div>
 
-              <button onClick={adjustRecipe} disabled={adjusting} style={{ width: "100%", background: adjusting ? C.border : C.accent, color: adjusting ? C.muted : "#000", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: adjusting ? "not-allowed" : "pointer" }}>
+              <button onClick={adjustRecipe} disabled={adjusting} style={{ width: "100%", background: adjusting ? C.border : C.accent, color: adjusting ? C.muted : "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: adjusting ? "not-allowed" : "pointer" }}>
                 {adjusting ? "KI passt an…" : recipeNote.trim() ? "Anpassen & hinzufügen" : "Direkt hinzufügen"}
               </button>
             </div>
@@ -592,12 +611,12 @@ Passe die Nährwerte entsprechend an.`;
               {[["Kalorien", "calories", "kcal", C.accent], ["Protein", "protein", "g", C.protein], ["Carbs", "carbs", "g", C.carbs], ["Fett", "fat", "g", C.fat]].map(([label, key, unit, color]) => (
                 <div key={key}>
                   <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{label} ({unit})</div>
-                  <input type="number" value={manual[key]} onChange={e => setManual(p => ({...p, [key]: e.target.value}))} placeholder="0" style={{ width: "100%", background: C.surface, border: `1px solid ${color}40`, borderRadius: 8, padding: "10px 12px", color: color, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
+                  <input type="number" value={manual[key]} onChange={e => setManual(p => ({...p, [key]: e.target.value}))} placeholder="0" style={{ width: "100%", background: C.surface, border: `1px solid ${color}40`, borderRadius: 8, padding: "10px 12px", color: color, fontFamily: "'DM Sans',sans-serif", fontSize: 20, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
                 </div>
               ))}
             </div>
           </div>
-          <button onClick={() => { if (!manual.name) return; onAdd({ ...manual, calories: parseFloat(manual.calories)||0, protein: parseFloat(manual.protein)||0, carbs: parseFloat(manual.carbs)||0, fat: parseFloat(manual.fat)||0, id: Date.now(), date: scanDate, meal_time: `${scanDate}T${scanTime}:00` }); }} disabled={!manual.name} style={{ width: "100%", background: manual.name ? C.accent : C.border, color: manual.name ? "#000" : C.muted, border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, cursor: manual.name ? "pointer" : "not-allowed" }}>
+          <button onClick={() => { if (!manual.name) return; onAdd({ ...manual, calories: parseFloat(manual.calories)||0, protein: parseFloat(manual.protein)||0, carbs: parseFloat(manual.carbs)||0, fat: parseFloat(manual.fat)||0, id: Date.now(), date: scanDate, meal_time: `${scanDate}T${scanTime}:00` }); }} disabled={!manual.name} style={{ width: "100%", background: manual.name ? C.accent : C.border, color: manual.name ? "#fff" : C.muted, border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: manual.name ? "pointer" : "not-allowed" }}>
             Hinzufügen
           </button>
         </div>
@@ -690,14 +709,14 @@ function IFTracker() {
     <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${goalReached ? C.green : C.border}`, marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 1 }}>
             Intermittent <span style={{ color: C.accent }}>Fasting</span>
           </div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ziel: {ifGoal}h Fasten</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button onClick={() => setIfGoal(p => Math.max(12, p-1))} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, width: 28, height: 28, borderRadius: 6, cursor: "pointer", fontSize: 16 }}>−</button>
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.accent, minWidth: 36, textAlign: "center" }}>{ifGoal}h</span>
+          <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: C.accent, minWidth: 36, textAlign: "center" }}>{ifGoal}h</span>
           <button onClick={() => setIfGoal(p => Math.min(24, p+1))} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, width: 28, height: 28, borderRadius: 6, cursor: "pointer", fontSize: 16 }}>+</button>
         </div>
       </div>
@@ -705,7 +724,7 @@ function IFTracker() {
         <div style={{ position: "relative", flexShrink: 0 }}>
           <Ring value={currentFasting} goal={ifGoal} color={goalReached ? C.green : C.accent} size={90} sw={8}/>
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: goalReached ? C.green : C.accent, lineHeight: 1 }}>{Math.floor(currentFasting)}h</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 16, color: goalReached ? C.green : C.accent, lineHeight: 1 }}>{Math.floor(currentFasting)}h</div>
             <div style={{ fontSize: 9, color: C.muted }}>{Math.round((currentFasting % 1) * 60)}m</div>
           </div>
         </div>
@@ -810,7 +829,7 @@ function AnalyticsTab({ goals }) {
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 16 }}>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 16 }}>
         Ana<span style={{ color: C.accent }}>lytics</span>
       </div>
 
@@ -840,7 +859,7 @@ function AnalyticsTab({ goals }) {
             ].map(k => (
               <div key={k.label} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{k.label}</div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: k.color }}>{k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: k.color }}>{k.value}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{k.unit}</span></div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{k.sub}</div>
               </div>
             ))}
@@ -851,19 +870,19 @@ function AnalyticsTab({ goals }) {
 
           {/* Two Rings */}
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Diese Woche</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Diese Woche</div>
             <div style={{ display: "flex", justifyContent: "space-around" }}>
               {[[avgWeekCal, goals.calories, C.accent, "kcal", "Kalorien"], [avgWeekProtein, goals.protein, C.protein, "g", "Protein"]].map(([val, goal, color, unit, label]) => (
                 <div key={label} style={{ textAlign: "center" }}>
                   <div style={{ position: "relative", display: "inline-block" }}>
                     <Ring value={val} goal={goal} color={color} size={110} sw={10}/>
                     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color, lineHeight: 1 }}>{goal>0?Math.round((val/goal)*100):0}%</div>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 22, color, lineHeight: 1 }}>{goal>0?Math.round((val/goal)*100):0}%</div>
                       <div style={{ fontSize: 10, color: C.muted }}>{label}</div>
                     </div>
                   </div>
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.text }}>{val}{unit}</div>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: C.text }}>{val}{unit}</div>
                     <div style={{ fontSize: 11, color: C.muted }}>/ {goal}{unit}</div>
                   </div>
                 </div>
@@ -873,7 +892,7 @@ function AnalyticsTab({ goals }) {
 
           {/* Week bars */}
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Diese Woche</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Diese Woche</div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
               {weekData.map(d => {
                 const pct = Math.min((d.cal/goals.calories)*100, 100);
@@ -894,7 +913,7 @@ function AnalyticsTab({ goals }) {
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <button onClick={() => { const d=new Date(viewYear,viewMonth-2); setViewMonth(d.getMonth()+1); setViewYear(d.getFullYear()); }} style={{ background:"none", border:"none", color:C.mutedLight, cursor:"pointer", fontSize:22 }}>‹</button>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>{monthName}</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1 }}>{monthName}</div>
               <button onClick={() => { const d=new Date(viewYear,viewMonth); if(d<=new Date()){setViewMonth(d.getMonth()+1);setViewYear(d.getFullYear());}}} style={{ background:"none", border:"none", color:C.mutedLight, cursor:"pointer", fontSize:22 }}>›</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
@@ -905,7 +924,7 @@ function AnalyticsTab({ goals }) {
                 const dateStr=`${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const color=getHeatmapColor(dateStr);
                 const isToday=dateStr===today();
-                return <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#000", fontWeight:600 }}>{day}</div>;
+                return <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#fff", fontWeight:600 }}>{day}</div>;
               })}
             </div>
             <div style={{ display:"flex", gap:10, marginTop:12, flexWrap:"wrap" }}>
@@ -920,7 +939,7 @@ function AnalyticsTab({ goals }) {
 
           {/* Macro averages */}
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Monat</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 16 }}>Ø Monat</div>
             {[["Kalorien",avgCal,goals.calories,C.accent,"kcal"],["Protein",avgProtein,goals.protein,C.protein,"g"],["Carbs",avgCarbs,goals.carbs,C.carbs,"g"],["Fett",avgFat,goals.fat,C.fat,"g"]].map(([l,v,g,c,u]) => (
               <div key={l} style={{ marginBottom:14 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
@@ -949,7 +968,7 @@ function AnalyticsTab({ goals }) {
                 return (
                   <div key={m.key} style={{ background: C.card, borderRadius: 14, padding: "14px 16px", border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>{m.label}</div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: m.color }}>{latest[m.key]||"–"}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span></div>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 30, color: m.color }}>{latest[m.key]||"–"}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span></div>
                     {delta && <div style={{ fontSize: 12, color: positive?C.green:C.red, marginTop: 2 }}>{parseFloat(delta)>0?"+":""}{delta}{m.unit}</div>}
                   </div>
                 );
@@ -959,7 +978,7 @@ function AnalyticsTab({ goals }) {
 
           {/* Chart selector */}
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
               {bodyMetrics.map(m => (
                 <button key={m.key} onClick={() => setActiveChart(m.key)} style={{
@@ -979,9 +998,9 @@ function AnalyticsTab({ goals }) {
           {/* Add measurement form */}
           <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, marginBottom: 14, overflow: "hidden" }}>
             <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>Neue Messung</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1 }}>Neue Messung</div>
               <button onClick={() => setShowMeasurementForm(!showMeasurementForm)} style={{
-                background: C.accent, color: "#000", border: "none", borderRadius: 8,
+                background: C.accent, color: "#fff", border: "none", borderRadius: 8,
                 width: 28, height: 28, fontSize: 20, cursor: "pointer", fontWeight: 700,
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>{showMeasurementForm ? "−" : "+"}</button>
@@ -995,7 +1014,7 @@ function AnalyticsTab({ goals }) {
                       <input type="number" step="0.1" value={measurementForm[m.key]}
                         onChange={e => setMeasurementForm(p => ({...p, [m.key]: e.target.value}))}
                         placeholder={latest?.[m.key] || "0"}
-                        style={{ width: "100%", background: C.surface, border: `1px solid ${m.color}40`, borderRadius: 8, padding: "10px 12px", color: m.color, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
+                        style={{ width: "100%", background: C.surface, border: `1px solid ${m.color}40`, borderRadius: 8, padding: "10px 12px", color: m.color, fontFamily: "'DM Sans',sans-serif", fontSize: 20, outline: "none", boxSizing: "border-box", textAlign: "center" }}/>
                     </div>
                   ))}
                 </div>
@@ -1005,7 +1024,7 @@ function AnalyticsTab({ goals }) {
                   if (saved) setBodyHistory(p => [...p, saved]);
                   setMeasurementForm({ weight:"", waist:"", chest:"", hip:"" });
                   setShowMeasurementForm(false);
-                }} style={{ width: "100%", background: C.accent, color: "#000", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, cursor: "pointer" }}>
+                }} style={{ width: "100%", background: C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 2, cursor: "pointer" }}>
                   Speichern
                 </button>
               </div>
@@ -1015,7 +1034,7 @@ function AnalyticsTab({ goals }) {
           {/* History table */}
           {bodyHistory.length > 0 && (
             <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
@@ -1041,8 +1060,8 @@ function AnalyticsTab({ goals }) {
           {/* KI Analysis */}
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 1 }}>KI-Analyse</div>
-              <div style={{ background: C.accent, color: "#000", fontSize: 10, fontFamily: "'DM Mono',monospace", padding: "3px 8px", borderRadius: 20, fontWeight: 700 }}>AI</div>
+              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1 }}>KI-Analyse</div>
+              <div style={{ background: C.accent, color: "#fff", fontSize: 10, fontFamily: "'DM Mono',monospace", padding: "3px 8px", borderRadius: 20, fontWeight: 700 }}>AI</div>
             </div>
             {bodyAnalysis ? (
               <div style={{ animation: "fadeIn .4s ease" }}>
@@ -1060,7 +1079,7 @@ function AnalyticsTab({ goals }) {
                 {bodyAnalysis.calorieAdjustment && (
                   <div style={{ marginTop: 14, background: C.surface, borderRadius: 10, padding: 12 }}>
                     <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 4 }}>KALORIEN-EMPFEHLUNG</div>
-                    <div style={{ color: bodyAnalysis.calorieAdjustment==="erhöhen"?C.green:bodyAnalysis.calorieAdjustment==="reduzieren"?C.red:C.fat, fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 1 }}>
+                    <div style={{ color: bodyAnalysis.calorieAdjustment==="erhöhen"?C.green:bodyAnalysis.calorieAdjustment==="reduzieren"?C.red:C.fat, fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 1 }}>
                       {bodyAnalysis.calorieAdjustment.toUpperCase()}
                     </div>
                     <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{bodyAnalysis.calorieReason}</div>
@@ -1082,7 +1101,7 @@ Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze"
                     setBodyAnalysis(JSON.parse(raw));
                   } catch(e) { console.error(e); }
                   setBodyAnalyzing(false);
-                }} disabled={bodyAnalyzing || bodyHistory.length < 2} style={{ width: "100%", background: bodyAnalyzing||bodyHistory.length<2?C.border:C.accent, color: bodyAnalyzing||bodyHistory.length<2?C.muted:"#000", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, cursor: bodyAnalyzing||bodyHistory.length<2?"not-allowed":"pointer" }}>
+                }} disabled={bodyAnalyzing || bodyHistory.length < 2} style={{ width: "100%", background: bodyAnalyzing||bodyHistory.length<2?C.border:C.accent, color: bodyAnalyzing||bodyHistory.length<2?C.muted:"#fff", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 2, cursor: bodyAnalyzing||bodyHistory.length<2?"not-allowed":"pointer" }}>
                   {bodyAnalyzing ? "Analysiere…" : bodyHistory.length < 2 ? "Mindestens 2 Messungen nötig" : "Analyse starten"}
                 </button>
               </div>
@@ -1116,7 +1135,7 @@ function MealPlanCard({ meal }) {
             </div>
           </div>
           <div style={{ textAlign: "right", marginLeft: 10 }}>
-            <div style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{meal.calories}</div>
+            <div style={{ color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18 }}>{meal.calories}</div>
             <div style={{ fontSize: 10, color: C.muted }}>kcal</div>
           </div>
           <span style={{ color: C.muted, fontSize: 14, marginLeft: 8, marginTop: 14 }}>{expanded ? "▲" : "▼"}</span>
@@ -1144,7 +1163,7 @@ function MealPlanCard({ meal }) {
               <div style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace", letterSpacing: 1, marginBottom: 6 }}>ZUBEREITUNG</div>
               {meal.steps.map((step, i) => (
                 <div key={i} style={{ display: "flex", gap: 10, marginBottom: 6, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>{i+1}</span>
+                  <span style={{ color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>{i+1}</span>
                   <span style={{ fontSize: 12, color: C.mutedLight, lineHeight: 1.5 }}>{step}</span>
                 </div>
               ))}
@@ -1299,7 +1318,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 4 }}>
         Meal<span style={{ color: C.accent }}>-Plan</span>
       </div>
       <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Dein persönlicher KI-Coach</div>
@@ -1313,7 +1332,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
                 maxWidth: "85%", padding: "10px 14px",
                 borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                 background: msg.role === "user" ? C.accent : C.surface,
-                color: msg.role === "user" ? "#000" : C.text,
+                color: msg.role === "user" ? "#fff" : C.text,
                 fontSize: 13, lineHeight: 1.5,
               }}>{msg.text}</div>
             </div>
@@ -1335,7 +1354,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
           />
           <button onClick={sendMessage} disabled={chatLoading || !chatInput.trim()} style={{
             background: chatInput.trim() ? C.accent : "none", border: "none",
-            color: chatInput.trim() ? "#000" : C.muted, padding: "12px 16px",
+            color: chatInput.trim() ? "#fff" : C.muted, padding: "12px 16px",
             cursor: chatInput.trim() ? "pointer" : "default", fontSize: 18, transition: "all .15s ease",
           }}>↑</button>
         </div>
@@ -1353,7 +1372,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
             borderRadius: 16, padding: 16, cursor: "pointer", transition: "all .15s ease",
           }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: mode===key ? C.accent : C.text, letterSpacing: 1 }}>{label}</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: mode===key ? C.accent : C.text, letterSpacing: 1 }}>{label}</div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{sub}</div>
           </div>
         ))}
@@ -1366,7 +1385,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
           <div style={{ display: "flex", gap: 10 }}>
             {[["kcal", remaining.calories, C.accent], ["Protein", remaining.protein+"g", C.protein], ["Carbs", remaining.carbs+"g", C.carbs], ["Fett", remaining.fat+"g", C.fat]].map(([l,v,c]) => (
               <div key={l} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: c }}>{v}</div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: c }}>{v}</div>
                 <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{l}</div>
               </div>
             ))}
@@ -1379,7 +1398,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       {mode === "inspo" && (
         <div style={{ background: C.card, borderRadius: 14, padding: 16, border: `1px solid ${C.border}`, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", animation: "fadeIn .2s ease" }}>
           <div style={{ fontSize: 13, color: C.mutedLight }}>Planen für</div>
-          <input type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
+          <input type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} style={{ background: "none", border: "none", color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18, outline: "none", cursor: "pointer", colorScheme: "dark" }}/>
         </div>
       )}
 
@@ -1405,8 +1424,8 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       {mode && (
         <button onClick={() => generate(mode)} disabled={loading} style={{
           width: "100%", background: loading ? C.border : C.accent,
-          color: loading ? C.muted : "#000", border: "none", borderRadius: 12,
-          padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 20,
+          color: loading ? C.muted : "#fff", border: "none", borderRadius: 12,
+          padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20,
           letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16,
         }}>
           {loading ? "KI denkt…" : mode === "inspo" ? "Tag planen ✦" : "Auffüllen ⚡"}
@@ -1417,14 +1436,14 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       {result && (
         <div style={{ animation: "fadeIn .4s ease" }}>
           <div style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.accent}40`, marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.accent, marginBottom: 4 }}>{result.title}</div>
+            <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: C.accent, marginBottom: 4 }}>{result.title}</div>
             {result.meals?.map((meal, i) => <MealPlanCard key={i} meal={meal}/>)}
             
             {/* Totals */}
             <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
               {[["kcal", result.totalCalories, C.accent], ["P", result.totalProtein+"g", C.protein], ["C", result.totalCarbs+"g", C.carbs], ["F", result.totalFat+"g", C.fat]].map(([l,v,c]) => (
                 <div key={l} style={{ flex: 1, textAlign: "center", background: C.surface, borderRadius: 8, padding: "8px 0" }}>
-                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: c }}>{v}</div>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, color: c }}>{v}</div>
                   <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{l}</div>
                 </div>
               ))}
@@ -1438,8 +1457,8 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
           </div>
 
           <button onClick={addToLog} style={{
-            width: "100%", background: C.green, color: "#000", border: "none", borderRadius: 12,
-            padding: "14px 0", fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2,
+            width: "100%", background: C.green, color: "#fff", border: "none", borderRadius: 12,
+            padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 2,
             cursor: "pointer", marginBottom: 10,
           }}>Ins Log übernehmen →</button>
 
@@ -1475,13 +1494,13 @@ function GoalsTab({ goals, setGoals }) {
     <div style={{ animation: "fadeIn .3s ease" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1 }}>
+          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 26, letterSpacing: 1 }}>
             Tages<span style={{ color: C.accent }}>ziele</span>
           </div>
           <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Empfohlen für Ausdauersport ~85kg</div>
         </div>
         <button onClick={() => editing ? handleSave() : setEditing(true)} disabled={saving} style={{
-          background: editing ? C.accent : C.card, color: editing ? "#000" : C.mutedLight,
+          background: editing ? C.accent : C.card, color: editing ? "#fff" : C.mutedLight,
           border: `1px solid ${editing ? "transparent" : C.border}`,
           borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 600,
           cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
@@ -1512,9 +1531,9 @@ function GoalsTab({ goals, setGoals }) {
                 </div>
                 {editing ? (
                   <input type="number" value={form[m.key] ?? ""} onChange={e => setForm(p => ({ ...p, [m.key]: parseFloat(e.target.value) || 0 }))}
-                    style={{ width: 90, background: C.surface, border: `1px solid ${m.color}`, borderRadius: 8, padding: "8px 10px", color: m.color, fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, outline: "none", textAlign: "right" }}/>
+                    style={{ width: 90, background: C.surface, border: `1px solid ${m.color}`, borderRadius: 8, padding: "8px 10px", color: m.color, fontFamily: "'DM Sans',sans-serif", fontSize: 22, outline: "none", textAlign: "right" }}/>
                 ) : (
-                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: m.color, letterSpacing: 1 }}>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 28, color: m.color, letterSpacing: 1 }}>
                     {val}<span style={{ fontSize: 13, color: C.muted, marginLeft: 2 }}>{m.unit}</span>
                   </div>
                 )}
@@ -1547,12 +1566,12 @@ export default function App() {
     const style = document.createElement("style");
     style.textContent = `
       * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-      html, body { background: #080808; overflow-x: hidden; max-width: 100vw; }
+      html, body { background: #f4f5f4; overflow-x: hidden; max-width: 100vw; }
       body { overscroll-behavior: none; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
       @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,.4); } 50% { box-shadow: 0 0 0 12px rgba(248,113,113,0); } }
       input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-      #root { background: #080808; min-height: 100vh; }
+      #root { background: #f4f5f4; min-height: 100vh; }
     `;
     document.head.appendChild(style);
 
@@ -1583,7 +1602,7 @@ export default function App() {
 
   if (loading) return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: C.accent, letterSpacing: 2 }}>Nutrition</div>
+      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 32, color: C.accent, letterSpacing: 2 }}>Nutrition</div>
       <div style={{ color: C.muted, fontSize: 13 }}>Daten werden geladen…</div>
     </div>
   );
@@ -1593,7 +1612,7 @@ export default function App() {
       {/* Header */}
       <div style={{ padding: "44px 20px 16px" }}>
         <div style={{ color: C.muted, fontSize: 11, fontFamily: "'DM Mono',monospace", letterSpacing: 2 }}>{dateStr}</div>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 2, marginTop: 2 }}>
+        <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 32, letterSpacing: 2, marginTop: 2 }}>
           Philipp's <span style={{ color: C.accent }}>Nutrition</span>
         </div>
       </div>
@@ -1607,7 +1626,7 @@ export default function App() {
       </div>
 
       {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
+      <div className="nutrition-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
         <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto", padding: "8px 0 24px", alignItems: "center" }}>
           <button onClick={() => setTab("today")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "today" ? C.accent : C.muted }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -1618,7 +1637,7 @@ export default function App() {
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Coach</span>
           </button>
           <button onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? C.accent : C.muted }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
