@@ -5,6 +5,10 @@ import { SCAN_PROMPT, normalizeScan, resizeComponent, prepareFoodImage } from ".
 import "./theme.css";
 import DailyCompletion from "./DailyCompletion.jsx";
 import ProductLookup from "./ProductLookup.jsx";
+import ProfileMenu from "./ProfileMenu.jsx";
+import WeeklyStreak from "./WeeklyStreak.jsx";
+import InfoTip from "./InfoTip.jsx";
+import BarcodeScan from "./BarcodeScan.jsx";
 import { mealTimestamp, fastingHours } from "./mealTime.js";
 import { summarizeDays, completeAverages, trackingStatus, goalOnDate } from "./tracking.js";
 import Icon from "./Icon.jsx";
@@ -188,31 +192,13 @@ async function callClaude(system, userContent, imageBase64 = null) {
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelectedDate }) {
+function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate }) {
   const totals = logged.reduce((a, m) => ({
     calories: a.calories + (m.calories || 0), protein: a.protein + (m.protein || 0),
     carbs: a.carbs + (m.carbs || 0), fat: a.fat + (m.fat || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-
-  const formatDate = (dateStr) => {
-    const d = new Date(dateStr + "T00:00:00");
-    const t = new Date(today() + "T00:00:00");
-    const diff = Math.round((t - d) / 86400000);
-    if (diff === 0) return "Heute";
-    if (diff === 1) return "Gestern";
-    return d.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" });
-  };
-
-  const changeDate = (days) => {
-    const d = new Date(selectedDate + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    const newDate = localDate(d);
-    if (newDate <= today()) setSelectedDate(newDate);
-  };
-
-  const isToday = selectedDate === today();
 
   const handleAdd = async (recipe) => {
     setSaving(true);
@@ -228,15 +214,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate, setSelec
 
   return (
     <div style={{ animation: "fadeIn .3s ease" }}>
-      {/* Date Navigator */}
-      <div className="q-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, background: C.card, borderRadius: 14, padding: "10px 16px", border: `1px solid ${C.border}` }}>
-        <button onClick={() => changeDate(-1)} style={{ background: "none", border: "none", color: C.mutedLight, cursor: "pointer", fontSize: 20, padding: "0 8px" }}>‹</button>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, color: isToday ? C.accent : C.text, letterSpacing: 1 }}>{formatDate(selectedDate)}</div>
-          {!isToday && <div style={{ fontSize: 11, color: C.muted }}>{selectedDate}</div>}
-        </div>
-        <button onClick={() => changeDate(1)} disabled={isToday} style={{ background: "none", border: "none", color: isToday ? C.border : C.mutedLight, cursor: isToday ? "default" : "pointer", fontSize: 20, padding: "0 8px" }}>›</button>
-      </div>
+      <WeeklyStreak goal={goals.calories} refresh={`${logged.length}:${totals.calories}`}/>
       {/* Nested instrument cards inspired by the reference's score panels. */}
       <section className="q-card q-energy-card" aria-label="Kalorienübersicht">
         <div className="q-energy-inset">
@@ -471,7 +449,7 @@ Passe die Nährwerte entsprechend an.`;
 
       {/* Mode selector */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        {[["camera", "KI-Scan", "ai"], ["utensils", "Notion", "notion"], ["edit", "Manuell", "manual"]].map(([icon, label, key]) => (
+        {[["camera", "KI-Scan", "ai"], ["cube", "Barcode", "barcode"], ["utensils", "Notion", "notion"], ["edit", "Manuell", "manual"]].map(([icon, label, key]) => (
           <button key={key} onClick={() => switchMode(key)} style={{
             flex: 1, padding: "14px 0", borderRadius: 14,
             border: `1px solid ${mode === key ? C.accent : C.border}`,
@@ -562,6 +540,7 @@ Passe die Nährwerte entsprechend an.`;
         </div>
       )}
 
+      {mode === "barcode" && <BarcodeScan onAdd={async meal => {const saved = await onAdd({...meal,date:scanDate,meal_time:`${scanDate}T${scanTime}:00`});if(!saved) throw new Error("Speichern fehlgeschlagen.");return saved;}}/>}
       {/* ── NOTION MODE ── */}
       {mode === "notion" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
@@ -745,7 +724,7 @@ function IFTracker() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
           <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 1 }}>
-            Intermittent <span style={{ color: C.accent }}>Fasting</span>
+            Intermittent <span style={{ color: C.accent }}>Fasting</span> <InfoTip label="Fastenzeit erklärt">Berechnet aus der letzten gespeicherten Mahlzeitenzeit. Der Durchschnitt verwendet Lücken von mehr als 4 und weniger als 24 Stunden; nicht bestätigte Fastenperioden. Fehlerhafte Uhrzeiten können die Anzeige beeinflussen.</InfoTip>
           </div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ziel: {ifGoal}h Fasten</div>
         </div>
@@ -765,7 +744,7 @@ function IFTracker() {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>{elapsed == null ? "Mahlzeitenzeit prüfen" : goalReached ? "Ziel erreicht!" : `Noch ${formatDuration(hoursLeft)}`}</div>
-          {elapsed == null && <p className="q-inline-message">Die gespeicherte Zeit liegt in der Zukunft. Fastenzeit wird erst ab diesem Zeitpunkt berechnet.</p>}
+          {elapsed == null && <span className="q-inline-message">Uhrzeit prüfen <InfoTip>Die gespeicherte Mahlzeitenzeit liegt in der Zukunft. Bis dahin wird keine Fastenzeit angezeigt.</InfoTip></span>}
           {lastMealTime && <div style={{ fontSize: 12, color: C.muted }}>Letzte Mahlzeit: {lastMealTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</div>}
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Ø Fastenzeit: {avgFasting > 0 ? formatDuration(avgFasting) : "–"}</div>
         </div>
@@ -898,8 +877,8 @@ function AnalyticsTab({ goals }) {
       {/* ── NUTRITION SUB-TAB ── */}
       {subTab === "nutrition" && (
         <div style={{ animation: "fadeIn .2s ease" }}>
-          {analyticsError ? <p role="alert" className="q-inline-message">{analyticsError}</p> : <p className="q-analysis-basis">Monat: {loggedDays} vollständige Tage · {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} unvollständig ausgeschlossen. Auto-Regel: mindestens ⅔ des Kalorienziels. Für alte Tage ohne Zielhistorie gilt das früheste bekannte Ziel.</p>}
-          {loggedDays === 0 && <section className="q-card q-empty-analytics"><strong>Keine vollständigen Tage in diesem Monat</strong><p>Die Mahlzeiten sind geladen. {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} erfasste Tage liegen unter der Vollständigkeitsgrenze oder wurden als unvollständig markiert. Deshalb zeigen die Durchschnittswerte einen Strich.</p><p>Wenn ein Tag trotzdem vollständig erfasst ist, tippe ihn unten im Kalender an und wähle „Vollständig“.</p></section>}
+          <div className="q-basis-line"><span>{loggedDays} vollständige Tage · {Object.values(dailyTotals).filter(day => day.status === "incomplete").length} unvollständig</span><InfoTip label="Berechnung der Analytics">Durchschnitte enthalten nur vollständige Tage. Automatisch gilt mindestens ⅔ des damaligen Kalorienziels; manuelle Änderungen haben Vorrang. Für alte Tage ohne Zielhistorie gilt das früheste bekannte Ziel. Im Kalender kannst du Tagesstatus korrigieren.</InfoTip></div>
+          {loggedDays === 0 && <div className="q-empty-analytics">Noch keine Durchschnittswerte <InfoTip label="Warum fehlen die Durchschnittswerte?">Deine Mahlzeiten sind geladen, aber kein Tag dieses Monats ist als vollständig eingestuft. Tippe einen Tag im Kalender an, falls du das korrigieren möchtest.</InfoTip></div>}
           {/* KPI Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             {[
@@ -1008,7 +987,7 @@ function AnalyticsTab({ goals }) {
             </div>
           )}
 
-          <p className="q-body-method">Oberarmumfang immer am selben Arm und an derselben Stelle messen – entspannt, ohne Pump. Bestehende Armwerte bleiben erhalten.</p>
+          <div className="q-basis-line">Körpermaße <InfoTip label="Hinweise zur Messung">Oberarmumfang immer am selben Arm und an derselben Stelle messen – entspannt, ohne Pump. Bestehende Armwerte bleiben erhalten.</InfoTip></div>
           {/* Chart selector */}
           <div className="q-card" style={{ background: C.card, borderRadius: 16, padding: 20, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 1, marginBottom: 12 }}>Verlauf</div>
@@ -1584,7 +1563,6 @@ function GoalsTab({ goals, setGoals }) {
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const { settings } = useContext(AccountSettingsContext);
   const [tab, setTab] = useState("today");
   const [logged, setLogged] = useState([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
@@ -1643,12 +1621,16 @@ export default function App() {
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingTop: "max(20px, env(safe-area-inset-top))", paddingBottom: 140 }}>
+      <div className="q-topbar">
+        {tab === "today" ? <details className="q-date-menu"><summary>{selectedDate === today() ? "Heute" : new Date(selectedDate+"T12:00:00").toLocaleDateString("de-DE",{day:"numeric",month:"short"})}<span aria-hidden="true">⌄</span></summary><div><label>Tag auswählen<input aria-label="Tag auswählen" type="date" max={today()} value={selectedDate} onChange={event => {if(!event.target.value) return;setSelectedDate(event.target.value);event.currentTarget.closest('details').open=false;}}/></label><button onClick={event => {setSelectedDate(today());event.currentTarget.closest('details').open=false;}}>Zu Heute</button></div></details> : <span/>}
+        <ProfileMenu/>
+      </div>
       <div style={{ padding: "0 20px" }}>
         {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "coach" && <CoachTab goals={goals} logged={logged}/>}
         {tab === "week" && <div className="q-analytics-page"><AnalyticsTab goals={goals}/></div>}
-        {tab === "goals" && <>{settings}<GoalsTab goals={goals} setGoals={setGoals}/></>}
+        {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
 
       {/* Bottom Nav */}
