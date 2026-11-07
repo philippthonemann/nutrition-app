@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { AccountSettingsContext } from './AccountSettingsContext';
 import { SUPABASE_URL, SUPABASE_KEY } from '../lib/supabase-config.js';
 
 const panel = { background: '#fff', color: '#273437', border: '1px solid #dce2e0', borderRadius: 12, padding: 24, width: '100%', maxWidth: 390 };
@@ -99,8 +100,7 @@ export default function AuthGate({ children }) {
     } finally { setBusy(false); }
   }
 
-  if (state.user) return <div key={state.user.id}>
-    <details className="nutrition-settings">
+  const accountSettings = <details className="nutrition-settings">
       <summary aria-label="Einstellungen öffnen">Einstellungen</summary>
     <div style={{ background: '#f4f5f4', padding: 12, textAlign: 'right' }}>
       <button style={{ ...button, marginRight: 8 }} onClick={() => { setShowPasswordSetup(!showPasswordSetup); setPasswordMessage(''); }}>Passwort festlegen</button>
@@ -121,9 +121,9 @@ export default function AuthGate({ children }) {
       </form>
       <p role="status">{passwordMessage}</p>
     </section>}
-    </details>
-    {children}
-  </div>;
+    </details>;
+
+  if (state.user) return <AccountSettingsContext.Provider key={state.user.id} value={{ userId: state.user.id, settings: accountSettings }}>{children}</AccountSettingsContext.Provider>;
 
   return <main style={{ minHeight: '100vh', background: '#f4f5f4', display: 'grid', placeItems: 'center', padding: 20, fontFamily: 'sans-serif' }}>
     <section style={panel}>
