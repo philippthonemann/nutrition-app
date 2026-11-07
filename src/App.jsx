@@ -498,7 +498,7 @@ Passe die Nährwerte entsprechend an.`;
             </div>
           </div>
 
-          <button onClick={analyzeAI} disabled={loading || preparingImage || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#000", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
+          <button onClick={analyzeAI} disabled={loading || preparingImage || (!text.trim() && !imageB64)} style={{ width: "100%", background: loading ? C.border : C.accent, color: loading ? C.muted : "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}>
             {loading ? "KI analysiert…" : "Nährwerte schätzen"}
           </button>
 
@@ -591,7 +591,7 @@ Passe die Nährwerte entsprechend an.`;
                 </div>
               </div>
 
-              <button onClick={adjustRecipe} disabled={adjusting} style={{ width: "100%", background: adjusting ? C.border : C.accent, color: adjusting ? C.muted : "#000", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: adjusting ? "not-allowed" : "pointer" }}>
+              <button onClick={adjustRecipe} disabled={adjusting} style={{ width: "100%", background: adjusting ? C.border : C.accent, color: adjusting ? C.muted : "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20, letterSpacing: 2, cursor: adjusting ? "not-allowed" : "pointer" }}>
                 {adjusting ? "KI passt an…" : recipeNote.trim() ? "Anpassen & hinzufügen" : "Direkt hinzufügen"}
               </button>
             </div>
@@ -924,7 +924,7 @@ function AnalyticsTab({ goals }) {
                 const dateStr=`${viewYear}-${String(viewMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const color=getHeatmapColor(dateStr);
                 const isToday=dateStr===today();
-                return <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#000", fontWeight:600 }}>{day}</div>;
+                return <div key={day} style={{ aspectRatio:"1", borderRadius:4, background:color, display:"flex", alignItems:"center", justifyContent:"center", border:isToday?`1.5px solid ${C.accent}`:"none", fontSize:9, color:color===C.border?C.muted:"#fff", fontWeight:600 }}>{day}</div>;
               })}
             </div>
             <div style={{ display:"flex", gap:10, marginTop:12, flexWrap:"wrap" }}>
@@ -1101,7 +1101,7 @@ Antworte NUR mit JSON: {"trend":"positiv|neutral|negativ","summary":"2-3 Sätze"
                     setBodyAnalysis(JSON.parse(raw));
                   } catch(e) { console.error(e); }
                   setBodyAnalyzing(false);
-                }} disabled={bodyAnalyzing || bodyHistory.length < 2} style={{ width: "100%", background: bodyAnalyzing||bodyHistory.length<2?C.border:C.accent, color: bodyAnalyzing||bodyHistory.length<2?C.muted:"#000", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 2, cursor: bodyAnalyzing||bodyHistory.length<2?"not-allowed":"pointer" }}>
+                }} disabled={bodyAnalyzing || bodyHistory.length < 2} style={{ width: "100%", background: bodyAnalyzing||bodyHistory.length<2?C.border:C.accent, color: bodyAnalyzing||bodyHistory.length<2?C.muted:"#fff", border: "none", borderRadius: 10, padding: "12px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 18, letterSpacing: 2, cursor: bodyAnalyzing||bodyHistory.length<2?"not-allowed":"pointer" }}>
                   {bodyAnalyzing ? "Analysiere…" : bodyHistory.length < 2 ? "Mindestens 2 Messungen nötig" : "Analyse starten"}
                 </button>
               </div>
@@ -1424,7 +1424,7 @@ Berücksichtige die Tageszeit: ${timeOfDay === "Abend" ? "nur noch leichte Mahlz
       {mode && (
         <button onClick={() => generate(mode)} disabled={loading} style={{
           width: "100%", background: loading ? C.border : C.accent,
-          color: loading ? C.muted : "#000", border: "none", borderRadius: 12,
+          color: loading ? C.muted : "#fff", border: "none", borderRadius: 12,
           padding: "14px 0", fontFamily: "'DM Sans',sans-serif", fontSize: 20,
           letterSpacing: 2, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16,
         }}>
