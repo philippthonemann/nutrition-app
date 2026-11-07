@@ -1,5 +1,8 @@
+import { requireOwner } from '../lib/require-owner.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
+  if (!await requireOwner(req, res)) return;
   
   const response = await fetch(
     `https://api.notion.com/v1/databases/${process.env.NOTION_DB_ID}/query`,

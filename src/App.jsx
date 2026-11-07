@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import { authFetch } from "./authFetch";
 
 const C = {
   bg: "#080808", surface: "#111", card: "#161616", border: "#222",
@@ -31,7 +32,7 @@ const SAMPLE_RECIPES = [];
 
 async function loadNotionRecipes() {
   try {
-    const res = await fetch('/api/notion');
+    const res = await authFetch('/api/notion');
     if (!res.ok) return [];
     return await res.json();
   } catch { return []; }
@@ -156,7 +157,7 @@ async function callClaude(system, userContent, imageBase64 = null) {
     ? [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
        { type: "text", text: userContent }]
     : userContent;
-  const res = await fetch("/api/claude", {
+  const res = await authFetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -393,7 +394,7 @@ Original Nährwerte: ${selectedRecipe.calories} kcal, ${selectedRecipe.protein}g
 Hinweis: ${recipeNote}
 Passe die Nährwerte entsprechend an.`;
     try {
-      const res = await fetch('/api/claude', {
+      const res = await authFetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, system: sys, messages: [{ role: 'user', content: prompt }] })
@@ -1207,7 +1208,7 @@ Antworte auf Deutsch, direkt und konkret. Maximal 3-4 Sätze. Keine langen Liste
         .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
       messages.push({ role: "user", content: userMsg });
 
-      const res = await fetch("/api/claude", {
+      const res = await authFetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1000, system: sys, messages })
