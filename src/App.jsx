@@ -9,6 +9,7 @@ import ProfileMenu from "./ProfileMenu.jsx";
 import WeeklyStreak from "./WeeklyStreak.jsx";
 import InfoTip from "./InfoTip.jsx";
 import BarcodeScan from "./BarcodeScan.jsx";
+import MealEditor from "./MealEditor.jsx";
 import { mealTimestamp, fastingHours } from "./mealTime.js";
 import { summarizeDays, completeAverages, trackingStatus, goalOnDate } from "./tracking.js";
 import Icon from "./Icon.jsx";
@@ -199,6 +200,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate }) {
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const handleAdd = async (recipe) => {
     setSaving(true);
@@ -265,7 +267,7 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate }) {
         {logged.length === 0
           ? <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "20px 0" }}>Noch nichts geloggt</div>
           : logged.map(m => (
-            <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 0", borderBottom: `1px solid ${C.border}` }}>
+            <div key={m.id} className="q-meal-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 0", borderBottom: `1px solid ${C.border}` }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</div>
                 <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>P {m.protein}g · C {m.carbs}g · F {m.fat}g</div>
@@ -273,12 +275,14 @@ function TodayTab({ logged, setLogged, goals, onOpenScan, selectedDate }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ color: C.accent, fontFamily: "'DM Sans',sans-serif", fontSize: 18 }}>{m.calories}</div>
-                <button onClick={() => handleRemove(m.id)}
+                <button className="q-meal-edit-button" aria-label={`Bearbeiten: ${m.name}`} onClick={() => setEditing(m)}><Icon name="edit" size={17}/></button>
+                <button aria-label={`Löschen: ${m.name}`} onClick={() => handleRemove(m.id)}
                   style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18 }}>×</button>
               </div>
             </div>
           ))}
       </div>
+      {editing && <MealEditor key={editing.id} meal={editing} onClose={() => setEditing(null)} onSaved={saved => setLogged(items => items.map(item => item.id === saved.id ? saved : item))}/>}
     </div>
   );
 }
@@ -1627,7 +1631,7 @@ export default function App() {
         <ProfileMenu/>
       </div>
       <div style={{ padding: "0 20px" }}>
-        {tab === "today" && <TodayTab logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
+        {tab === "today" && <TodayTab key={selectedDate} logged={logged} setLogged={setLogged} goals={goals} onOpenScan={() => setTab("scan")} selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
         {tab === "scan" && <ScanTab onAdd={handleAddFromScan}/>}
         {tab === "coach" && <CoachTab goals={goals} logged={logged}/>}
         {tab === "week" && <div className="q-analytics-page"><AnalyticsTab goals={goals}/></div>}
@@ -1638,14 +1642,14 @@ export default function App() {
       <div className="nutrition-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
         <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto", padding: "8px 0 24px", alignItems: "center" }}>
           <button onClick={() => setTab("today")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "today" ? "#fff" : "#bcc8cc" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <Icon name="home" size={22}/>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Heute</span>
           </button>
           <button onClick={() => setTab("coach")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "coach" ? "#fff" : "#bcc8cc" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7z"/></svg>
             <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Coach</span>
           </button>
-          <button onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
+          <button aria-label="Mahlzeit hinzufügen" onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? "#fff" : "#bcc8cc" }}>

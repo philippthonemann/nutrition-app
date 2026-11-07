@@ -166,3 +166,25 @@ button:disabled { opacity: .48; cursor: not-allowed !important; }
 .q-barcode-scan p { font-size:12px; color:#6d8792; line-height:1.7; margin:10px 0; }
 .q-barcode-product { margin-top:16px; padding:14px; border-radius:16px; background:#e8eff1; }
 .q-barcode-product a { color:#405c69; font-size:11px; }
+.nutrition-nav > div { min-height:76px; padding:12px 8px !important; align-items:center !important; }
+.nutrition-nav button:not([aria-label="Mahlzeit hinzufügen"]) { justify-content:center; min-height:52px; padding:5px 0; transform:translateY(3px); }
+.nutrition-nav svg { display:block; }
+.nutrition-nav button[aria-label="Mahlzeit hinzufügen"] { margin-top:0 !important; }
+.q-meal-edit-button { background:none; border:0; color:#718b96; padding:7px; display:grid; place-items:center; min-width:36px; min-height:40px; }
+.q-meal-editor { width:min(390px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; margin:auto; padding:24px; border:1px solid #dce5e7; border-radius:26px; color:#2d4148; background:linear-gradient(135deg,#fff,#f0f5f6); box-shadow:0 20px 70px #23343a40; }
+.q-meal-editor::backdrop { background:#23343a66; backdrop-filter:blur(5px); }
+.q-meal-editor header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.q-meal-editor h2 { font-size:20px; font-weight:500; }
+.q-meal-editor h3 { font-size:13px; margin-bottom:10px; }
+.q-meal-editor p { font-size:12px; line-height:1.7; color:#627e89; margin:12px 0; overflow-wrap:anywhere; }
+.q-meal-editor label { display:block; font-size:12px; margin-top:18px; }
+.q-meal-editor textarea { display:block; width:100%; min-height:90px; resize:vertical; font:16px/1.5 'DM Sans',sans-serif; padding:13px; margin:9px 0; border:1px solid #cbd9df; border-radius:16px; background:#fff; color:#2d4148; }
+.q-meal-editor button { padding:10px 15px; border:1px solid #cfdbdf; border-radius:999px; background:#e6edf0; color:#405c69; font:12px 'DM Sans',sans-serif; cursor:pointer; }
+.q-meal-editor header button { padding:6px 12px; font-size:22px; }
+.q-edit-portions { display:flex; flex-wrap:wrap; gap:8px; }
+.q-edit-preview { margin-top:18px; padding:16px; border-radius:18px; background:#e2ecef; }
+.q-edit-preview > button { background:#526e7a; color:white; width:100%; }
+.q-edit-cancel { margin-top:16px; width:100%; }
+
+.q-meal-row > div:first-child { min-width:0; flex:1; padding-right:8px; overflow-wrap:anywhere; }
+.q-meal-row > div:last-child { flex-shrink:0; gap:5px !important; }
