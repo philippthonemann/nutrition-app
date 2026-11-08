@@ -55,3 +55,27 @@ test('price research rejects unauthenticated access before provider calls',async
  const response={setHeader(){},status(code){this.code=code;return this;},json(value){this.value=value;return this;},end(){}};
  await handler({method:'POST',headers:{},body:{name:'Milk'}},response);assert.equal(response.code,401);
 });
+test('background research claims once, uses only configured provider, and stores cited price and deposit',async()=>{
+ const originalFetch=globalThis.fetch;
+ const previous=process.env.ANTHROPIC_API_KEY;
+ process.env.ANTHROPIC_API_KEY='test-only';
+ const calls=[];
+ globalThis.fetch=async(url,init={})=>{
+  calls.push({url,init});
+  if(url.includes('/auth/v1/user'))return Response.json({id:'owner',email_confirmed_at:'2026-01-01'});
+  if(url.includes('/app_owner?'))return Response.json([{user_id:'owner'}]);
+  if(url.includes('api.anthropic.com'))return Response.json({content:[{type:'text',text:'A sourced price. <price>{"found":true,"name":"Milk","retailer":"REWE","price_eur":1.19,"package_quantity":1000,"package_unit":"ml","deposit_eur":0.25,"source_url":"https://www.rewe.de/test"}</price>',citations:[{type:'web_search_result_location',url:'https://www.rewe.de/test',title:'Milk'}]}]});
+  if(init.headers?.Range)return new Response('[]',{headers:{'content-range':'0-0/1'}});
+  if(init.method==='POST')return Response.json([{query_key:'rewe|milk|ml'}]);
+  if(init.method==='PATCH')return Response.json([]);
+  return Response.json([]);
+ };
+ const res={setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;},end(){}};
+ try {
+  await handler({method:'POST',headers:{authorization:'Bearer test-token'},body:{name:'Milk',unit:'ml',retailer:'REWE'}},res);
+  assert.equal(res.code,200);assert.equal(res.body.status,'found');
+  const saved=calls.find(c=>c.init.method==='PATCH');
+  const payload=JSON.parse(saved.init.body);assert.equal(payload.result.price_eur,1.19);assert.equal(payload.result.deposit_eur,0.25);assert.equal(payload.status,'found');
+  assert.equal(calls.filter(c=>c.url.includes('api.anthropic.com')).length,1);
+ } finally {globalThis.fetch=originalFetch;if(previous===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=previous;}
+});

@@ -3,7 +3,7 @@ import {supabase} from './supabase';
 import {applyAction,CATEGORIES} from '../lib/shopping.js';
 
 const empty=()=>({base:[],queue:[],catalog:{ingredients:[],products:[],prices:[],recipes:[],recipeIngredients:[],units:[],research:[]}});
-const read=key=>{try{return JSON.parse(localStorage.getItem(key))||empty();}catch{return empty();}};
+const read=key=>{try{const saved=JSON.parse(localStorage.getItem(key));return saved&&Array.isArray(saved.base)&&Array.isArray(saved.queue)&&saved.catalog?saved:empty();}catch{return empty();}};
 const lock=(name,run)=>navigator.locks ? navigator.locks.request(name,run) : Promise.resolve().then(run);
 export function project(state) {
   const rows=structuredClone(state.base);
