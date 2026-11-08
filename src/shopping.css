@@ -1,9 +1,9 @@
-.shopping-page { max-width:1180px; margin:auto; padding:24px 28px calc(40px + env(safe-area-inset-bottom)); font-family:'DM Sans',sans-serif; color:var(--q-ink); }
-.shopping-page h1,.shopping-page h2,.shopping-page h3 { margin:0; font-weight:500; }
+.shopping-page { max-width:1180px; margin:auto; padding:24px 28px calc(150px + env(safe-area-inset-bottom)); font-family:'DM Sans',sans-serif; color:var(--q-ink); }
+.shopping-page h1,.shopping-page h2:not(.q-profile h2),.shopping-page h3:not(.q-profile h3) { margin:0; font-weight:500; }
 .shopping-page h1 { font-size:34px; letter-spacing:-1px; margin-top:5px; }
-.shopping-page h2 { font-size:23px; letter-spacing:-.4px; }
+.shopping-page h2:not(.q-profile h2) { font-size:23px; letter-spacing:-.4px; }
 .shopping-page h3 { font-size:14px; }
-.shopping-page button { cursor:pointer; border:1px solid #d6e1e5; background:#f3f7f8; color:#405c69; padding:10px 15px; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; }
+.shopping-page button:not(.q-profile button):not(.nutrition-nav button) { cursor:pointer; border:1px solid #d6e1e5; background:#f3f7f8; color:#405c69; padding:10px 15px; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; }
 .shopping-page .shop-primary,.shop-modal .shop-primary { color:#fff; background:linear-gradient(125deg,#607d89,#405966); border-color:transparent; }
 .shopping-page a { color:#526e7a; text-decoration:none; }
 .shop-header,.shop-heading,.shop-list-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -96,7 +96,7 @@
 @media(hover:hover){.shopping-page .q-info-tip:hover .q-info-content { display:block; }.shopping-page .q-info-tip .q-info-content { display:none; }.shopping-page .q-info-tip[open] .q-info-content { display:block; }}
 @media(min-width:800px){.shop-modal { width:min(540px,calc(100vw - 40px)); }}
 @media(max-width:799px){
- .shopping-page { padding:20px 16px calc(32px + env(safe-area-inset-bottom)); }
+ .shopping-page { padding:20px 16px calc(145px + env(safe-area-inset-bottom)); }
  .shop-header { margin-bottom:23px; }.shop-heading { margin-bottom:20px; }.shopping-page h1 { font-size:29px; }
  .shop-layout { display:block; }.shop-sidebar { position:static; gap:10px; margin-bottom:24px; }.shop-sidebar h2,.shop-sidebar > button { display:none; }
  .shop-sidebar nav { display:flex; overflow-x:auto; padding-bottom:5px; }.shop-sidebar nav button { width:auto; flex-shrink:0; max-width:240px; }.shop-sidebar nav button span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -106,3 +106,37 @@
  .shop-cost-controls { gap:8px; }.shop-cost-controls > span { font-size:10px; }
 }
 @media(max-width:360px){.shopping-page { padding-left:12px; padding-right:12px; }.shop-heading > button { font-size:11px; padding:9px 12px; }.shop-cost .q-energy-reading > span { font-size:35px; }.shop-cost-footer { gap:16px; }.shop-item-actions { padding-left:10px; }.shop-recent-grid { grid-template-columns:1fr; }}
+
+/* Reuse the Nutrition shell and isolate shopping controls from shared account/navigation styles. */
+.shop-header.q-topbar { padding:0; min-height:44px; margin-bottom:24px; }
+.shop-header h1 { font-size:27px; font-weight:500; letter-spacing:-.7px; margin:0; }
+.shop-lists-label { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.shop-lists-label > button { padding:5px 9px!important; }
+.shop-market-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:12px 0 0; }
+.shopping-page .shop-market-grid button { display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:7px; border-radius:15px!important; text-align:left; padding:12px 10px; background:linear-gradient(120deg,#e8eff1,#f5f8f8); min-width:0; border:1px solid var(--q-line); }
+.shopping-page .shop-market-grid button[aria-pressed=true] { background:#dce7ec; }
+.shop-market-grid span { font-size:11px; }
+.shop-market-grid strong { font-size:18px; font-weight:500; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+.shop-market-grid small { font-size:9px; color:#6c8189; line-height:1.5; }
+.shop-add-entry { display:flex; gap:10px; margin:18px 0 24px; }
+.shop-add-entry .q-quick-main { flex:1; font-size:13px; padding:13px 16px; }
+.shop-add-entry > button:last-child { font-size:12px; }
+.shop-modal .shop-add { padding:0; border:0; margin:20px 0; }
+.shop-modal .shop-add form { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+.shop-modal .shop-search { min-height:48px; }
+.shop-modal .shop-search input { border:0; margin:0; padding:12px 0; background:transparent; }
+.shop-amount-options { font-size:12px; color:#6c8189; }
+.shop-amount-options summary { cursor:pointer; padding:8px 0; }
+.shop-modal .shop-add-amount { display:grid; grid-template-columns:1fr 100px; gap:10px; }
+.shop-modal .shop-add-amount input,.shop-modal .shop-add-amount select { margin:8px 0 0; width:100%; }
+.shop-modal .shop-submit { width:100%; }
+.shop-item { background:radial-gradient(ellipse at 15% 0%,#d3e0e055,transparent 80%),linear-gradient(145deg,#849ba4,#6e858f); color:#fff; }
+.shopping-page .shop-item .shop-item-toggle,.shopping-page .shop-item-actions button { color:inherit; }
+.shop-item .shop-item-name small,.shop-item .shop-item-price small { color:#e0eaee; }
+.shop-item .shop-check { background:#ffffff18; border-color:#ffffff70; }
+.shop-item.is-checked { background:linear-gradient(120deg,#e8eff1,#f5f8f8); color:#718995; }
+.shop-item.is-checked .shop-item-name small,.shop-item.is-checked .shop-item-price small { color:#80959f; }
+.shopping-page .shop-recent-grid .q-quick-main { border-radius:16px!important; padding:14px; min-height:70px; }
+.shopping-page .shop-recent-grid .is-listed { background:radial-gradient(ellipse at 15% 0%,#d3e0e055,transparent 80%),linear-gradient(145deg,#849ba4,#6e858f); color:#fff; }
+.shop-recent-grid .is-listed small { color:#e0eaee; }
+@media(max-width:799px){.shop-lists-label h2 { display:block; font-size:12px; }.shop-sidebar { gap:6px; }.shop-lists-label > button { min-height:36px!important; }.shop-header.q-topbar { margin-bottom:18px; }.shop-market-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.shop-market-grid strong { font-size:20px; }}

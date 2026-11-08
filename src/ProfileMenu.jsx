@@ -53,6 +53,7 @@ export default function ProfileMenu() {
     {open && <section className="q-profile-panel" aria-label="Dein Profil">
       <h2>Dein Profil</h2>
       <a href="/einkaufen" className="q-avatar-upload">Einkaufen</a>
+      <a href="/?tab=goals" className="q-avatar-upload">Tagesziele</a>
       <label className="q-avatar-upload">{busy ? 'Foto wird gespeichert…' : 'Profilfoto hochladen'}<input type="file" accept="image/*" disabled={busy} onChange={upload}/></label>
       {message && <p role="alert">{message}</p>}
       {settings}

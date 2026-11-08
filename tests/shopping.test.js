@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {makeItem,applyAction,priceFor,totals,identity,baseQuantity} from '../lib/shopping.js';
+import {makeItem,applyAction,priceFor,totals,identity,baseQuantity,compareRetailers,money} from '../lib/shopping.js';
 import {validateResearch} from '../lib/shopping-research.js';
 import handler from '../api/shopping-prices.js';
 const ingredient={id:'ingredient',name:'Joghurt',canonical_key:'joghurt'};
@@ -78,4 +78,20 @@ test('background research claims once, uses only configured provider, and stores
   const payload=JSON.parse(saved.init.body);assert.equal(payload.result.price_eur,1.19);assert.equal(payload.result.deposit_eur,0.25);assert.equal(payload.status,'found');
   assert.equal(calls.filter(c=>c.url.includes('api.anthropic.com')).length,1);
  } finally {globalThis.fetch=originalFetch;if(previous===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=previous;}
+});
+
+test('comparison uses four complete baskets and keeps checked items in the average',()=>{
+ const item=makeItem({name:'Joghurt',quantity:750,unit:'g',ingredient});
+ const prices=[['REWE',1.49],['Penny',2],['Lidl',1],['Edeka',2.5]].map(([retailer,price_eur])=>({...price,retailer,price_eur}));
+ const comparison=compareRetailers([{...item,checked:true}],{...catalog,prices});
+ assert.deepEqual(comparison.markets.map(m=>m.total),[2.98,4,2,5]);
+ assert.equal(money(comparison.total),'3,50 €');
+ assert.equal(comparison.remaining,0);
+ assert.equal(comparison.markets.every(m=>m.known===1),true);
+});
+test('missing retailer data stays a labelled guide estimate without fabricated discounts',()=>{
+ const item=makeItem({name:'Unknown household article'});
+ const comparison=compareRetailers([item],{});
+ assert.equal(new Set(comparison.markets.map(m=>m.total)).size,1);
+ assert.equal(comparison.markets.every(m=>m.guides===1&&m.known===0),true);
 });

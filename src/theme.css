@@ -188,3 +188,13 @@ button:disabled { opacity: .48; cursor: not-allowed !important; }
 
 .q-meal-row > div:first-child { min-width:0; flex:1; padding-right:8px; overflow-wrap:anywhere; }
 .q-meal-row > div:last-child { flex-shrink:0; gap:5px !important; }
+
+
+/* One navigation component for Nutrition and shopping. */
+.nutrition-nav { position:fixed; z-index:100; }
+.nutrition-nav > div { display:flex; width:100%; max-width:430px; margin:auto; align-items:center; }
+.nutrition-nav .q-nav-link { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:4px; background:none; border:0; cursor:pointer; color:#bcc8cc; min-width:0; }
+.nutrition-nav .q-nav-link[aria-current=page] { color:#fff; }
+.nutrition-nav .q-nav-link span { font:9px 'DM Mono',monospace; letter-spacing:1px; }
+.nutrition-nav .q-nav-add { display:flex; flex:0 0 56px; align-items:center; justify-content:center; width:56px; height:56px; padding:0; margin:0; border:0; color:#fff; cursor:pointer; background:linear-gradient(145deg,#b5c7cd,#8da6b1); box-shadow:0 4px 14px #0e202c30,inset 0 1px 0 #fff8; }
+.nutrition-nav button.q-nav-add { transform:none; min-height:56px; }

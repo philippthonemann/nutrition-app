@@ -1,4 +1,6 @@
 const paths = {
+  chart: 'M3 3v18h18M7 16l4-4 4 4 4-6',
+  coach: 'M15 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7Z',
   basket: 'M3 8h18l-2 13H5L3 8Zm4 0 5-6 5 6M9 12v5m6-5v5',
   plus: 'M12 5v14M5 12h14',
   close: 'm6 6 12 12M6 18 18 6',

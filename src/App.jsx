@@ -13,6 +13,7 @@ import MealEditor from "./MealEditor.jsx";
 import { mealTimestamp, fastingHours } from "./mealTime.js";
 import { summarizeDays, completeAverages, trackingStatus, goalOnDate } from "./tracking.js";
 import Icon from "./Icon.jsx";
+import NutritionNav from "./NutritionNav.jsx";
 import { AccountSettingsContext } from "./AccountSettingsContext";
 import { quickRecipes, readPinned } from "./quickAdds.js";
 import { ProgressGauge, TargetScale } from "./ProgressGauge.jsx";
@@ -1568,7 +1569,7 @@ function GoalsTab({ goals, setGoals }) {
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState("today");
+  const [tab, setTab] = useState(() => { const requested = new URLSearchParams(window.location.search).get("tab"); return ["today","scan","coach","week","goals"].includes(requested) ? requested : "today"; });
   const [logged, setLogged] = useState([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
@@ -1639,30 +1640,7 @@ export default function App() {
         {tab === "goals" && <GoalsTab goals={goals} setGoals={setGoals}/>}
       </div>
 
-      {/* Bottom Nav */}
-      <div className="nutrition-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
-        <div style={{ display: "flex", width: "100%", maxWidth: 430, margin: "0 auto", padding: "8px 0 24px", alignItems: "center" }}>
-          <button onClick={() => setTab("today")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "today" ? "#fff" : "#bcc8cc" }}>
-            <Icon name="home" size={22}/>
-            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Heute</span>
-          </button>
-          <button onClick={() => setTab("coach")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "coach" ? "#fff" : "#bcc8cc" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M6.5 8h11l1 7h-3l-1 7H10l-1-7H6l1-7z"/></svg>
-            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Coach</span>
-          </button>
-          <button aria-label="Mahlzeit hinzufügen" onClick={() => setTab("scan")} style={{ flex: "0 0 64px", width: 64, height: 64, borderRadius: "50%", background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: -24, boxShadow: `0 4px 20px ${C.accent}60` }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-          <button onClick={() => setTab("week")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "week" ? "#fff" : "#bcc8cc" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
-            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Analytics</span>
-          </button>
-          <button onClick={() => setTab("goals")} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === "goals" ? "#fff" : "#bcc8cc" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
-            <span style={{ fontSize: 9, fontFamily: "'DM Mono',monospace", letterSpacing: 1 }}>Ziele</span>
-          </button>
-        </div>
-      </div>
+      <NutritionNav active={tab} onNavigate={setTab}/>
     </div>
   );
 }
