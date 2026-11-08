@@ -1,4 +1,10 @@
 const paths = {
+  basket: 'M3 8h18l-2 13H5L3 8Zm4 0 5-6 5 6M9 12v5m6-5v5',
+  plus: 'M12 5v14M5 12h14',
+  close: 'm6 6 12 12M6 18 18 6',
+  search: 'M20 20l-5-5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z',
+  up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6',
+  refresh: 'M20 7v5h-5M4 17v-5h5M5 8a8 8 0 0 1 13-3l2 3M4 16l2 3a8 8 0 0 0 13-3',
   home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
   flame: 'M12 3c2 4-1 5 2 8 1-2 2-3 2-4 5 6 4 14-4 14S3 14 7 9c0 3 1 4 2 5-1-5 3-7 3-11Z',
   strength: 'M3 8v8m3-10v12m12-12v12m3-10v8M6 12h12',
@@ -23,3 +29,4 @@ const paths = {
 export default function Icon({ name = 'sparkles', size = 20, label, ...props }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden={label ? undefined : true} role={label ? 'img' : undefined} aria-label={label} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} {...props}><path d={paths[name] || paths.sparkles}/></svg>;
 }
+

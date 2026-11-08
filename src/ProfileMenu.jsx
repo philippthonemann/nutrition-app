@@ -52,9 +52,11 @@ export default function ProfileMenu() {
     <button className="q-avatar" aria-label="Profil und Einstellungen öffnen" aria-expanded={open} onClick={() => setOpen(!open)}>{avatar ? <img src={avatar} alt="Dein Profilfoto"/> : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>}</button>
     {open && <section className="q-profile-panel" aria-label="Dein Profil">
       <h2>Dein Profil</h2>
+      <a href="/einkaufen" className="q-avatar-upload">Einkaufen</a>
       <label className="q-avatar-upload">{busy ? 'Foto wird gespeichert…' : 'Profilfoto hochladen'}<input type="file" accept="image/*" disabled={busy} onChange={upload}/></label>
       {message && <p role="alert">{message}</p>}
       {settings}
     </section>}
   </div>;
 }
+
