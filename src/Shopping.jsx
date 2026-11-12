@@ -6,6 +6,7 @@ import { BottomNav } from './NutritionNav.jsx';
 import InfoTip from './InfoTip.jsx';
 import Icon from './Icon.jsx';
 import {authFetch} from './authFetch';
+import ShoppingTextImport from './ShoppingTextImport.jsx';
 import Ingredients from './Ingredients.jsx';
 import {flushSync} from 'react-dom';
 import useShopping from './useShopping';
@@ -32,7 +33,7 @@ function ItemEditor({item,onSave,onClose}) {
     <button className="shop-primary" type="submit">Speichern</button><button type="button" onClick={async()=>{if(await onSave({removed:true}))onClose();}}>Von Liste entfernen</button>
   </form></Modal>;
 }
-function RecipePicker({catalog,onAdd,onClose}) {
+function RecipePicker({catalog,onAdd,onClose,onImport}) {
   const [recipeId,setRecipeId]=useState('');
   const [servings,setServings]=useState(4);
   const [excluded,setExcluded]=useState([]);
@@ -53,7 +54,7 @@ function RecipePicker({catalog,onAdd,onClose}) {
     });
     if(await onAdd(items))onClose();else setBusy(false);
   }
-  return <Modal title="Aus Rezept hinzufügen" onClose={onClose}><label>Rezept<select autoFocus value={recipeId} onChange={e=>{setRecipeId(e.target.value);setExcluded(catalog.recipeIngredients.filter(l=>l.recipe_id===e.target.value&&(l.optional||pantry(nameFor(l)))).map(l=>l.id));}}><option value="">Rezept auswählen</option>{catalog.recipes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+  return <Modal title="Aus Rezept hinzufügen" onClose={onClose}><button type="button" onClick={onImport}>Rezept oder Text einfügen</button><label>Rezept<select autoFocus value={recipeId} onChange={e=>{setRecipeId(e.target.value);setExcluded(catalog.recipeIngredients.filter(l=>l.recipe_id===e.target.value&&(l.optional||pantry(nameFor(l)))).map(l=>l.id));}}><option value="">Rezept auswählen</option>{catalog.recipes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
     {recipe&&<><label>Portionen<input type="number" min="0.25" max="100" step="0.25" value={servings} onChange={e=>setServings(e.target.value)}/></label><p>Vorratszutaten und optionale Zutaten sind abgewählt. Bitte kurz prüfen.</p><div className="shop-recipe-lines">{lines.map(l=><label key={l.id}><input type="checkbox" checked={!excluded.includes(l.id)} onChange={()=>setExcluded(excluded.includes(l.id)?excluded.filter(id=>id!==l.id):[...excluded,l.id])}/><span>{nameFor(l)}<small>{l.quantity?quantityText({quantity:Number(l.quantity)*Number(servings)/Number(recipe.servings||1),unit:l.unit}):l.original_text}{pantry(nameFor(l))?' · vermutlich vorhanden':''}</small></span></label>)}</div><button className="shop-primary" disabled={busy||!selected.length||!Number.isFinite(Number(servings))||Number(servings)<=0||Number(servings)>100} onClick={add}>{selected.length} Zutaten übernehmen</button></>}
     {!catalog.recipes.length&&<p>Keine Rezepte geladen. Verbinde dich zum ersten Laden mit dem Internet.</p>}
   </Modal>;
@@ -69,6 +70,7 @@ export default function Shopping() {
   const [quantity,setQuantity]=useState(1);
   const [unit,setUnit]=useState('piece');
   const [recipeOpen,setRecipeOpen]=useState(false);
+  const [textImportOpen,setTextImportOpen]=useState(false);
   const [editing,setEditing]=useState(null);
   const [ingredientsOpen,setIngredientsOpen]=useState(false);
   const [grouped, setGrouped] = useState(() => {
@@ -244,7 +246,8 @@ export default function Shopping() {
       </>}</div>
       {lists.some(l=>l.document.archived)&&<details className="shop-archive"><summary>Archivierte Listen</summary>{lists.filter(l=>l.document.archived).map(l=><button key={l.id} onClick={()=>void mutate(l.id,{type:'meta',patch:{archived:false}})}>{l.document.name} wiederherstellen</button>)}</details>}
       {createOpen&&<Modal title="Neue Einkaufsliste" onClose={()=>setCreateOpen(false)}><form onSubmit={create}><label>Name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} maxLength={100} required placeholder="Wocheneinkauf"/></label><button className="shop-primary" disabled={!newName.trim()}>Liste erstellen</button></form></Modal>}
-      {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
+      {recipeOpen&&current&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onImport={()=>{setRecipeOpen(false);setTextImportOpen(true);}} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
+      {textImportOpen&&current&&<Modal title="Rezept oder Text einfügen" onClose={()=>setTextImportOpen(false)}><ShoppingTextImport catalog={catalog.ingredients} onClose={()=>setTextImportOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/></Modal>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
       {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=tilePrice(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.alternative ? `Vergleichsprodukt · ${p.label}` : p.label}</p>{p.alternative && <p>Dieser Vergleichspreis fließt in die Schätzung für {selectedMarket} ein.</p>}<strong>{money(p.total)}</strong>{p.loose ? <p>{money(p.price_eur * 1000 / p.package_quantity)} je kg</p> : <p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p>}<p>Benötigt: {quantityText(priceDetails)}</p>
         {openItems.some(item => item.id === priceDetails.id) && <button type="button" onClick={() => {
