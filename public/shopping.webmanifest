@@ -5,7 +5,7 @@
   "start_url": "/einkaufen",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#9db3bb",
+  "theme_color": "#edf3f4",
   "icons": [
     {
       "src": "/shopping-icon-192.png",
@@ -20,5 +20,6 @@
       "purpose": "any"
     }
   ],
-  "id": "/einkaufen"
+  "id": "/einkaufen",
+  "scope": "/einkaufen"
 }
