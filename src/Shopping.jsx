@@ -78,13 +78,25 @@ export default function Shopping() {
   const listMenuRef=useRef(null);
   const doc=current?.document;
   const visible=doc?.items.filter(i=>!i.removed)||[];
+  const openItems = visible.filter(item => !item.checked);
   const selectedMarket = shoppingMarkets.includes(doc?.retailer) ? doc.retailer : shoppingMarkets[0];
   const marketTotals = shoppingMarkets.map(retailer => ({
     retailer,
-    total: totals(visible, retailer, catalog).total,
+    total: totals(openItems, retailer, catalog).total,
   }));
   const order=[...new Set([...(doc?.categories||[]),...CATEGORIES])];
-  const recent=lists.flatMap(l=>l.document.items).reverse().filter((item,index,all)=>all.findIndex(i=>i.merge_key===item.merge_key)===index);
+  const openKeys = new Set(openItems.map(item => item.merge_key));
+  const history = [
+    ...visible.filter(item => item.checked).reverse(),
+    ...lists.flatMap(list => list.document.items).reverse(),
+  ];
+  const recentByKey = new Map();
+  for (const item of history) {
+    if (!item.removed && !openKeys.has(item.merge_key) && !recentByKey.has(item.merge_key)) {
+      recentByKey.set(item.merge_key, item);
+    }
+  }
+  const recent = [...recentByKey.values()];
   const suggestions=catalog.ingredients.filter(i=>normalize(i.name).includes(normalize(query))||(i.aliases||[]).some(a=>normalize(a).includes(normalize(query))));
   const uniqueSuggestions=[...new Map(suggestions.map(i=>[`${normalize(i.canonical_key)}:${normalize(i.name)}`,i])).values()].slice(0,8);
   function select(id) {setSelected(id);setSettings(false);try{localStorage.setItem(`nutrition:shopping:selected:${userId}`,id);}catch{/* selection is optional */}}
@@ -138,7 +150,7 @@ export default function Shopping() {
           <div className="q-energy-inset">
             <div className="q-energy-heading">
               <span><Icon name="wallet" size={17}/> Geschätzter Einkauf</span>
-              <InfoTip label="Preisberechnung">Die Schätzung umfasst die Artikel dieser Liste und rechnet mit ganzen Packungen. Tippe auf einen Markt, um dessen Artikelpreise anzuzeigen.</InfoTip>
+              <InfoTip label="Preisberechnung">Die Schätzung umfasst die offenen Artikel dieser Liste und rechnet mit ganzen Packungen. Tippe auf einen Markt, um dessen Artikelpreise anzuzeigen.</InfoTip>
             </div>
             <div className="shop-market-grid" aria-label="Geschätzte Preise nach Supermarkt">
               {marketTotals.map(market => <button key={market.retailer}
@@ -151,14 +163,13 @@ export default function Shopping() {
         </section>
         {settings&&<section className="q-card shop-settings"><h3>Liste bearbeiten</h3><form onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();if(name)void mutate(current.id,{type:'meta',patch:{name}});}}><label>Listenname<input name="name" defaultValue={doc.name} maxLength={100} required/></label><button>Umbenennen</button></form><h3>Kategorienreihenfolge</h3><ol>{order.map((c,index)=><li key={c}><span>{c}</span><button disabled={index===0} aria-label={`${c} nach oben`} onClick={()=>{const next=[...order];[next[index-1],next[index]]=[next[index],next[index-1]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="up"/></button><button disabled={index===order.length-1} aria-label={`${c} nach unten`} onClick={()=>{const next=[...order];[next[index],next[index+1]]=[next[index+1],next[index]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="down"/></button></li>)}</ol><button onClick={()=>void mutate(current.id,{type:'meta',patch:{archived:true}})}>Liste archivieren</button></section>}
         <div className="shop-add-entry"><button className="q-quick-main" onClick={()=>setAddOpen(true)}><Icon name="plus"/><span>Artikel hinzufügen</span></button><button onClick={()=>setRecipeOpen(true)}><Icon name="utensils"/> Rezept</button></div>
-        <div className="shop-articles">{order.map(category=>{const items=visible.filter(i=>i.category===category&&!i.checked);return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
-        {!visible.length&&<p className="shop-empty-inline">Deine Liste ist bereit. Füge deinen ersten Artikel hinzu.</p>}
-        {visible.some(i=>i.checked)&&<section className="shop-category shop-completed"><h3>Im Einkaufswagen<small>{visible.filter(i=>i.checked).length}</small></h3><div className="shop-item-grid">{visible.filter(i=>i.checked).map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:false}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>}
-        </div><RecentItems recent={recent} visible={visible} limit={recentLimit} onMore={()=>setRecentLimit(recentLimit+20)} onAdd={item=>void add(null,item)}/><p className="shop-research-status" role="status">{researchStatus}</p>
+        <div className="shop-articles">{order.map(category=>{const items=openItems.filter(i=>i.category===category);return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
+        {!openItems.length&&<p className="shop-empty-inline">Deine Liste ist leer.</p>}
+        </div><RecentItems recent={recent} catalog={catalog} market={selectedMarket} onPrice={setPriceDetails} limit={recentLimit} onMore={()=>setRecentLimit(recentLimit+20)} onAdd={item=>void add(null,item)}/><p className="shop-research-status" role="status">{researchStatus}</p>
       </>}</div>
       {lists.some(l=>l.document.archived)&&<details className="shop-archive"><summary>Archivierte Listen</summary>{lists.filter(l=>l.document.archived).map(l=><button key={l.id} onClick={()=>void mutate(l.id,{type:'meta',patch:{archived:false}})}>{l.document.name} wiederherstellen</button>)}</details>}
       {createOpen&&<Modal title="Neue Einkaufsliste" onClose={()=>setCreateOpen(false)}><form onSubmit={create}><label>Name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} maxLength={100} required placeholder="Wocheneinkauf"/></label><button className="shop-primary" disabled={!newName.trim()}>Liste erstellen</button></form></Modal>}
-      {addOpen&&current&&<Modal title="Artikel hinzufügen" onClose={()=>setAddOpen(false)}>        <div className="shop-add"><form onSubmit={e=>{e.preventDefault();void add(catalog.ingredients.find(i=>normalize(i.name)===normalize(query))||null);}}><label className="shop-search"><Icon name="search"/><input autoFocus ref={input} aria-label="Artikel hinzufügen" value={query} maxLength={160} onChange={e=>setQuery(e.target.value)} placeholder="Was brauchst du?" required autoComplete="off"/></label><details className="shop-amount-options"><summary>Menge anpassen</summary><div className="shop-add-amount"><input aria-label="Menge" type="number" min="0.001" max="1000000" step="any" required value={quantity} onChange={e=>setQuantity(e.target.value)}/><select aria-label="Einheit" value={unit} onChange={e=>setUnit(e.target.value)}>{['piece','g','kg','ml','l'].map(u=><option key={u} value={u}>{displayUnit(u)}</option>)}</select></div></details><button className="shop-primary shop-submit" type="submit" disabled={!query.trim()||Number(quantity)<=0}><Icon name="plus"/> Hinzufügen</button></form>{query.trim()&&<div className="shop-suggestions">{uniqueSuggestions.map(i=><button key={i.id} onClick={()=>void add(i)}>{i.name}<Icon name="plus" size={16}/></button>)}</div>}<button className="shop-recipe-button" onClick={()=>{setAddOpen(false);setRecipeOpen(true);}}><Icon name="utensils"/> Aus Rezept hinzufügen</button></div><RecentItems recent={recent} visible={visible} limit={20} onAdd={item=>void add(null,item)}/></Modal>}
+      {addOpen&&current&&<Modal title="Artikel hinzufügen" onClose={()=>setAddOpen(false)}>        <div className="shop-add"><form onSubmit={e=>{e.preventDefault();void add(catalog.ingredients.find(i=>normalize(i.name)===normalize(query))||null);}}><label className="shop-search"><Icon name="search"/><input autoFocus ref={input} aria-label="Artikel hinzufügen" value={query} maxLength={160} onChange={e=>setQuery(e.target.value)} placeholder="Was brauchst du?" required autoComplete="off"/></label><details className="shop-amount-options"><summary>Menge anpassen</summary><div className="shop-add-amount"><input aria-label="Menge" type="number" min="0.001" max="1000000" step="any" required value={quantity} onChange={e=>setQuantity(e.target.value)}/><select aria-label="Einheit" value={unit} onChange={e=>setUnit(e.target.value)}>{['piece','g','kg','ml','l'].map(u=><option key={u} value={u}>{displayUnit(u)}</option>)}</select></div></details><button className="shop-primary shop-submit" type="submit" disabled={!query.trim()||Number(quantity)<=0}><Icon name="plus"/> Hinzufügen</button></form>{query.trim()&&<div className="shop-suggestions">{uniqueSuggestions.map(i=><button key={i.id} onClick={()=>void add(i)}>{i.name}<Icon name="plus" size={16}/></button>)}</div>}<button className="shop-recipe-button" onClick={()=>{setAddOpen(false);setRecipeOpen(true);}}><Icon name="utensils"/> Aus Rezept hinzufügen</button></div><RecentItems recent={recent} catalog={catalog} market={selectedMarket} limit={20} onAdd={item=>void add(null,item)}/></Modal>}
       {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
       {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=priceFor(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.label}</p><strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>{p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Preisquelle öffnen</a>}{p.kind==='guide'&&<p>Allgemeine Schätzung mit angenommener Packung. Kein bestätigter Ladenpreis.</p>}{p.kind==='online'&&<p>Online-Vergleichspreis. Der Preis vor Ort kann abweichen.</p>}</div>;})()}</Modal>}
@@ -175,11 +186,53 @@ export default function Shopping() {
       </p>}
     </main>;
 }
-function Item({item,price,onToggle,onEdit,onPrice}) {
-  return <article className={`q-card shop-item ${item.checked?'is-checked':''}`}><button className="shop-item-toggle" onClick={onToggle} aria-pressed={item.checked} aria-label={`${item.name} ${item.checked?'wieder auf die Liste':'abhaken'}`}><span className="shop-check">{item.checked&&<Icon name="check" size={17}/>}</span><span className="shop-item-name">{item.name}<small>{quantityText(item)}{item.note?' · Menge prüfen':''}</small></span></button><div className="shop-item-actions"><button className="shop-item-price" onClick={onPrice} aria-label={`Preisdetails ${item.name}`}><strong>{money(price.total)}</strong><small>{price.kind==='known'?'Händlerpreis':price.kind==='online'?'Onlinepreis':'Richtpreis'}</small></button><button aria-label={`Menge bearbeiten: ${item.name}`} onClick={onEdit}><Icon name="edit" size={16}/></button></div></article>;
+const categoryIcons = {
+  'Obst & Gemüse': 'leaf',
+  'Kühlregal': 'drop',
+  'Fleisch & Fisch': 'utensils',
+  'Brot & Backwaren': 'grain',
+  'Vorrat': 'cube',
+  'Gewürze & Saucen': 'drop',
+  'Tiefkühl': 'snow',
+  'Getränke': 'glass',
+  'Haushalt': 'home',
+};
+
+const priceSources = {
+  known: { icon: 'receipt', label: 'Erfasster Preis' },
+  guide: { icon: 'target', label: 'Richtpreis' },
+  online: { icon: 'globe', label: 'Onlinepreis' },
+};
+
+function Item({item, price, onToggle, onEdit, onPrice, recent = false}) {
+  const source = priceSources[price.kind];
+  const priceLabel = `${money(price.total)} · ${source.label}`;
+  const priceContent = <><strong>{money(price.total)}</strong><Icon name={source.icon} size={13}/></>;
+  return <article className={`q-card shop-item${recent ? ' shop-item-recent' : ''}`}>
+    <button type="button" className="shop-item-toggle" onClick={onToggle}
+      aria-label={`${item.name}: ${recent ? 'zur Liste hinzufügen' : 'als gekauft markieren'}`}>
+      <Icon name={categoryIcons[item.category] || 'basket'} size={24}/>
+      <span className="shop-item-name">{item.name}<small>{quantityText(item)}{item.note ? ' · Menge prüfen' : ''}</small></span>
+    </button>
+    <div className="shop-item-actions">
+      {onPrice
+        ? <button type="button" className="shop-item-price" title={priceLabel}
+            aria-label={`Preisdetails für ${item.name}: ${priceLabel}`} onClick={onPrice}>{priceContent}</button>
+        : <span className="shop-item-price" title={priceLabel} aria-label={priceLabel}>{priceContent}</span>}
+      {onEdit && <button type="button" aria-label={`Menge bearbeiten: ${item.name}`} onClick={onEdit}><Icon name="edit" size={16}/></button>}
+    </div>
+  </article>;
 }
 
-function RecentItems({recent,visible,limit,onMore,onAdd}) {
-  const activeKeys=new Set(visible.filter(i=>!i.checked).map(i=>i.merge_key));
-  return <section className="q-card shop-recents"><h3>Zuletzt verwendet</h3>{!recent.length&&<p>Deine verwendeten Artikel erscheinen hier.</p>}<div className="shop-recent-grid">{recent.slice(0,limit).map(item=>{const listed=activeKeys.has(item.merge_key);return <button key={item.merge_key} className={`q-quick-main ${listed?'is-listed':''}`} aria-pressed={listed} onClick={()=>{if(!listed)onAdd(item);}}><Icon name={listed?'check':'plus'} size={18}/><span>{item.name}<small>{listed?'Auf deiner Liste':quantityText(item)}</small></span></button>;})}</div>{recent.length>0&&<small>{Math.min(limit,recent.length)} von {recent.length}</small>}{onMore&&recent.length>limit&&<button onClick={onMore}>Weitere laden</button>}</section>;
+function RecentItems({recent, catalog, market, limit, onMore, onAdd, onPrice}) {
+  return <section className="shop-recents">
+    <h3>Zuletzt verwendet</h3>
+    {recent.length === 0 && <p>Hier erscheinen Artikel, die du wieder auf die Liste setzen kannst.</p>}
+    <div className="shop-item-grid">
+      {recent.slice(0, limit).map(item => <Item key={item.merge_key} item={item}
+        price={priceFor(item, market, catalog)} recent onToggle={() => onAdd(item)}
+        onPrice={onPrice ? () => onPrice(item) : undefined}/>)}
+    </div>
+    {onMore && recent.length > limit && <button onClick={onMore}>Weitere laden</button>}
+  </section>;
 }
