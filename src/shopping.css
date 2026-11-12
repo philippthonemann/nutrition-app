@@ -265,3 +265,51 @@
   overscroll-behavior:contain;
 }
 .shop-estimate-coverage { display:grid; gap:4px; margin-top:8px; }
+
+.shop-view-picker {
+  position:relative;
+  display:grid;
+  place-items:center;
+  flex:0 0 44px;
+  min-height:44px;
+  color:#405c69;
+  background:#f3f7f8;
+  border:1px solid #d6e1e5;
+  border-radius:999px;
+}
+.shop-view-picker:focus-within { outline:2px solid #526e7a; outline-offset:2px; }
+.shop-view-picker select {
+  position:absolute;
+  inset:0;
+  width:100%;
+  opacity:0;
+  font-size:16px;
+  cursor:pointer;
+}
+@media (max-width:799px) {
+  .shopping-page {
+    --shop-gutter:16px;
+    padding-top:max(20px, env(safe-area-inset-top, 0px));
+    padding-left:max(var(--shop-gutter), env(safe-area-inset-left, 0px));
+    padding-right:max(var(--shop-gutter), env(safe-area-inset-right, 0px));
+  }
+  .shop-sticky-tools {
+    top:0;
+    margin-left:calc(-1 * max(var(--shop-gutter), env(safe-area-inset-left, 0px)));
+    margin-right:calc(-1 * max(var(--shop-gutter), env(safe-area-inset-right, 0px)));
+    padding-top:env(safe-area-inset-top, 0px);
+    background:#9db3bb;
+    border-radius:0 0 20px 20px;
+  }
+  .shop-sticky-tools .q-energy-inset,
+  .shopping-page .shop-sticky-tools .shop-add {
+    padding-left:max(var(--shop-gutter), env(safe-area-inset-left, 0px));
+    padding-right:max(var(--shop-gutter), env(safe-area-inset-right, 0px));
+  }
+  .shop-sticky-tools .q-energy-inset { border-radius:0; }
+  .shopping-page .shop-add-entry { gap:6px; }
+  .shopping-page .shop-add-entry > button { padding:6px 9px; }
+}
+@media (max-width:360px) {
+  .shopping-page { --shop-gutter:12px; }
+}
