@@ -12,6 +12,16 @@ const categoryIcons = {
 };
 
 const productIcons = [
+  [/knoblauch/, 'garlic'],
+  [/ingwer/, 'ginger'],
+  [/mango/, 'mango'],
+  [/gurke/, 'cucumber'],
+  [/spinat/, 'spinach'],
+  [/chiasamen/, 'chia'],
+  [/edamame/, 'edamame'],
+  [/rote bete/, 'beet'],
+  [/pflucksalat|blattsalat|kopfsalat/, 'lettuce'],
+  [/^butter\b/, 'butter'],
   [/avocado/, 'avocado'],
   [/mozzarella|harzer|schmelzkase|protein kase/, 'cheese'],
   [/mineralwasser|volvic|\bwasser\b/, 'water'],
