@@ -1,3 +1,4 @@
+import {ingredientIcon} from './ingredientIcon.js';
 import {useContext,useEffect,useRef,useState} from 'react';
 import {AccountSettingsContext} from './AccountSettingsContext';
 import ProfileMenu from './ProfileMenu.jsx';
@@ -257,51 +258,11 @@ export default function Shopping() {
       </p>}
     </main>;
 }
-const categoryIcons = {
-  'Obst & Gemüse': 'leaf',
-  'Milch & Käse': 'drop',
-  'Fleisch & Fisch': 'utensils',
-  'Brot & Gebäck': 'grain',
-  'Zutaten & Gewürze': 'drop',
-  'Fertig- & Tiefkühlprodukte': 'snow',
-  'Getränke': 'glass',
-  'Haushalt': 'home',
-};
-
 const priceSources = {
   known: { icon: 'receipt', label: 'Erfasster Preis' },
   guide: { icon: 'target', label: 'Richtpreis' },
   online: { icon: 'globe', label: 'Onlinepreis' },
 };
-
-const productIcons = [
-  [/tofu/, 'tofu'],
-  [/skyr|joghurt|yogurt/, 'yogurt'],
-  [/garnele|shrimp|prawn/, 'shrimp'],
-  [/\b(?:olivenol|sesamol|rapsol|neutrales ol)\b/, 'oil'],
-  [/erdnussmus|erdnussbutter|honig/, 'spread'],
-  [/hahnchen|huhn|chicken/, 'chicken'],
-  [/beeren|heidelbeer|himbeer|brombeer|erdbeer/, 'berries'],
-  [/kreatin|creatin/, 'supplement'],
-  [/whey|proteinpulver|vanille protein|protein shake/, 'shaker'],
-  [/karott|mohre/, 'carrot'],
-  [/zitrone|limette/, 'lemon'],
-  [/zwiebel/, 'onion'],
-  [/kartoffel/, 'potato'],
-  [/tomat/, 'tomato'],
-  [/kokosmilch|kokoscreme/, 'coconut'],
-  [/mandel(?:milch|drink)|hafer(?:milch|drink)|soja(?:milch|drink)|milch/, 'milk'],
-  [/banan/, 'banana'],
-  [/apfel/, 'apple'],
-  [/brot|brotchen|toast/, 'bread'],
-  [/reis/, 'rice'],
-  [/haferflocken/, 'grain'],
-  [/brokkoli/, 'broccoli'],
-  [/sojasauce|sojasosse/, 'bottle'],
-  [/^(?:rote |gelbe |grune )?paprika\b/, 'pepper'],
-  [/kaffee|espresso/, 'coffee'],
-  [/eier|\bei\b/, 'egg'],
-];
 
 function tilePrice(item, market, catalog) {
   const estimate = priceFor(item, market, catalog);
@@ -351,7 +312,7 @@ function Item({item, price, onToggle, onEdit, onPrice, recent = false}) {
       onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress}
       onContextMenu={event => { if (onEdit) event.preventDefault(); }}
       aria-label={`${item.name}: ${recent ? 'zur Liste hinzufügen' : 'als gekauft markieren'}`}>
-      <Icon name={productIcons.find(([pattern]) => pattern.test(normalize(item.name)))?.[1] || categoryIcons[item.category] || 'basket'} size={36}/>
+      <Icon name={ingredientIcon(item.name, item.category)} size={36}/>
       <span className="shop-item-name" title={item.name}>{item.name}</span>
       <small className="shop-item-quantity">{quantityText(item)}{item.note ? ' · Menge prüfen' : ''}</small>
     </button>

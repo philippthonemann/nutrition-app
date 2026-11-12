@@ -1,3 +1,4 @@
+import {ingredientIcon} from './ingredientIcon.js';
 import Icon from './Icon.jsx';
 import {useEffect, useMemo, useState} from 'react';
 import {supabase} from './supabase';
@@ -249,7 +250,7 @@ export default function Ingredients({userId, onCatalogChange}) {
         {filtered.slice(0, limit).map(item => {
           const row = latestNutrition(current.nutrition, 'ingredient_id', item.id);
           return <li key={item.id}><button type="button" onClick={() => setSelected(item.id)}>
-            <strong>{item.name}</strong><span>{categoryFor(item.name, item.category)}{row?.calories_kcal != null && ` · ${number.format(row.calories_kcal)} kcal je ${number.format(row.basis_quantity)} ${units[row.basis_unit]}`}</span>
+            <Icon name={ingredientIcon(item.name, item.category)} size={24}/><strong>{item.name}</strong><span>{categoryFor(item.name, item.category)}{row?.calories_kcal != null && ` · ${number.format(row.calories_kcal)} kcal je ${number.format(row.basis_quantity)} ${units[row.basis_unit]}`}</span>
           </button></li>;
         })}
       </ul>

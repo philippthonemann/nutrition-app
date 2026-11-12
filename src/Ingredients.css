@@ -27,3 +27,7 @@
 .ingredient-price-table :is(th,td) { padding:8px 4px; vertical-align:top; border-bottom:1px solid var(--q-line, #e3e9ec); }
 .ingredient-price-table th:first-child { width:49%; }
 .ingredient-price-table small { display:block; color:var(--q-muted, #62676b); }
+
+.ingredient-list button { grid-template-columns:24px minmax(0,1fr); column-gap:12px; align-items:center; }
+.ingredient-list button svg { grid-row:1 / span 2; }
+.ingredient-list button :is(strong,span) { grid-column:2; overflow-wrap:anywhere; }
