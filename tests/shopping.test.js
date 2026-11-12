@@ -42,7 +42,7 @@ test('foreign converted, membership, expired and pack-count-only prices are not 
 test('known selected retailer beats online comparison and fallback',()=>{
  const item=makeItem({name:'Joghurt',quantity:500,unit:'g',ingredient});
  assert.equal(priceFor(item,'REWE',{...catalog,prices:[{...price,channel:'online',retailer:'Combi',source_url:'https://example.com',price_eur:1},price]},now).kind,'known');
- assert.equal(priceFor(item,'Lidl',{...catalog,prices:[{...price,channel:'online',source_url:'https://example.com'}]},now).kind,'online');
+ assert.equal(priceFor(item,'Lidl',{...catalog,prices:[{...price,channel:'online',source_url:'https://example.com'}]},now).kind,'guide');
 });
 test('research must have real provider citations, valid unit and package, and known deposit',()=>{
  const data={found:true,package_unit:'g',price_eur:2,package_quantity:500,retailer:'REWE',source_url:'https://example.com/p',deposit_eur:null};
@@ -94,4 +94,15 @@ test('missing retailer data stays a labelled guide estimate without fabricated d
  const comparison=compareRetailers([item],{});
  assert.equal(new Set(comparison.markets.map(m=>m.total)).size,1);
  assert.equal(comparison.markets.every(m=>m.guides===1&&m.known===0),true);
+});
+
+test('a typed Basmati item in pieces uses the verified Lidl pack price', () => {
+ const rice={id:'rice',name:'Basmatireis'};
+ const pack={id:'pack',ingredient_id:'rice',package_unit:'g',package_quantity:1000};
+ const receipt={...price,product_id:'pack',retailer:'Lidl',package_quantity:1000,price_eur:2.49,status:'verified',channel:'store'};
+ const item=makeItem({name:'Basmati-Reis',quantity:2});
+ const result=priceFor(item,'Lidl',{ingredients:[rice],products:[pack],prices:[receipt]},now);
+ assert.equal(result.kind,'known');
+ assert.equal(result.total,4.98);
+ assert.equal(result.package_quantity,1000);
 });

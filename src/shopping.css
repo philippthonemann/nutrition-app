@@ -209,3 +209,16 @@
 .shopping-page .shop-add-entry .shop-search { flex:1; min-width:0; }
 .shopping-page .shop-search input { width:100%; min-width:0; font-size:16px; }
 .shopping-page .shop-add form { display:grid; grid-template-columns:minmax(0,1fr); }
+
+.shopping-page .shop-item-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.shopping-page .shop-item .shop-item-toggle { min-height:106px; padding:10px 4px 2px; gap:6px; }
+.shopping-page .shop-item-name { font-size:clamp(11px,3.5vw,15px); }
+.shopping-page .shop-item-actions { padding:0 2px; }
+.shopping-page .shop-item-actions button { padding:3px; min-width:32px; }
+.shopping-page .shop-item-actions .shop-item-price { padding:3px; }
+.shop-cost { margin-bottom:14px; }
+.shop-cost .shop-market-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+.shopping-page .shop-cost .shop-market-grid button { flex-direction:column; justify-content:center; padding:4px; }
+.shop-view-toggle { display:flex; gap:6px; margin-bottom:12px; }
+.shopping-page .shop-view-toggle button { padding:5px 12px; font-size:12px; }
+.shopping-page .shop-view-toggle button[aria-pressed=true] { background:#d6e4ed; }
