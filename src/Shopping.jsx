@@ -10,7 +10,7 @@ import ShoppingTextImport from './ShoppingTextImport.jsx';
 import Ingredients from './Ingredients.jsx';
 import {flushSync} from 'react-dom';
 import useShopping from './useShopping';
-import {CATEGORIES,categoryFor,makeItem,normalize,pantry,priceFor,money,researchKey} from '../lib/shopping.js';
+import {CATEGORIES,categoryFor,isCoveredPrice,makeItem,normalize,pantry,priceFor,money,researchKey} from '../lib/shopping.js';
 import './theme.css';
 import './shopping.css';
 
@@ -96,7 +96,7 @@ export default function Shopping() {
     return {
       retailer,
       total: prices.reduce((sum, price) => sum + price.total, 0),
-      covered: prices.filter(price => price.kind === 'known' && !price.alternative && price.status === 'verified').length,
+      covered: prices.filter(price => isCoveredPrice(price, retailer)).length,
     };
   });
   const order=[...new Set([...(doc?.categories||[]).filter(category => CATEGORIES.includes(category)),...CATEGORIES])];
@@ -290,7 +290,7 @@ function Item({item, price, onToggle, onEdit, onPrice, recent = false}) {
   const source = priceSources[price.kind];
   const priceLabel = `${money(price.total)} · ${price.alternative ? 'Vergleichspreis bei ' + price.retailer : source.label}`;
   const priceContent = <>
-    {price.alternative && <span className="shop-alternative-market">{price.retailer}</span>}
+    {(price.alternative || isCoveredPrice(price, price.retailer) && price.kind === 'online') && <span className="shop-alternative-market">{price.retailer}</span>}
     <strong>{money(price.total)}</strong><Icon name={source.icon} size={13}/>
   </>;
   return <article className={`q-card shop-item${recent ? ' shop-item-recent' : ''}`}>
