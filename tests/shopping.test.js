@@ -106,3 +106,16 @@ test('a typed Basmati item in pieces uses the verified Lidl pack price', () => {
  assert.equal(result.total,4.98);
  assert.equal(result.package_quantity,1000);
 });
+
+
+test('a recipe pinned to REWE uses the verified Lidl equivalent only for Lidl', () => {
+ const rice={id:'rice',name:'Basmatireis'};
+ const rewe={id:'rewe-rice',name:'ja! Basmati Reis',ingredient_id:'rice',package_unit:'g',package_quantity:1000};
+ const lidl={...rewe,id:'lidl-rice',name:'Lidl Basmatireis'};
+ const receipt={...price,product_id:lidl.id,retailer:'Lidl',package_quantity:1000,price_eur:2.49,status:'verified',channel:'store'};
+ const item=makeItem({name:rice.name,ingredient:rice,product_id:rewe.id,quantity:266.6667,unit:'g'});
+ const riceCatalog={ingredients:[rice],products:[rewe,lidl],prices:[receipt]};
+ assert.equal(priceFor(item,'Lidl',riceCatalog,now).kind,'known');
+ assert.equal(priceFor(item,'Lidl',riceCatalog,now).total,2.49);
+ assert.equal(priceFor(item,'Penny',riceCatalog,now).kind,'guide');
+});

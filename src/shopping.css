@@ -222,3 +222,24 @@
 .shop-view-toggle { display:flex; gap:6px; margin-bottom:12px; }
 .shopping-page .shop-view-toggle button { padding:5px 12px; font-size:12px; }
 .shopping-page .shop-view-toggle button[aria-pressed=true] { background:#d6e4ed; }
+
+
+.shopping-page .shop-item { height:172px; }
+.shopping-page .shop-item .shop-item-toggle {
+  flex:1 1 0;
+  min-height:0;
+  overflow:hidden;
+  user-select:none;
+  -webkit-touch-callout:none;
+}
+.shopping-page .shop-item-name {
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+  overflow:hidden;
+  font-size:clamp(11px,3.2vw,14px);
+  line-height:1.2;
+}
+.shop-item-quantity { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+.shop-alternative-market { font-size:10px; overflow:hidden; text-overflow:ellipsis; }
+.shopping-page .shop-item-price { max-width:100%; }
