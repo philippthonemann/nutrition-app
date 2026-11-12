@@ -222,7 +222,7 @@ export default function Shopping() {
             }}>{label}</button>
           )}
         </div>}
-        <div className="shop-articles">{(grouped ? order : ['Alle Artikel']).map(category=>{const items=grouped ? openItems.filter(i=>i.category===category) : openItems;return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
+        <div className="shop-articles">{(grouped ? order : ['Alle Artikel']).map(category=>{const items=grouped ? openItems.filter(i=>i.category===category) : openItems;return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={tilePrice(item, selectedMarket, catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
         {!openItems.length&&<p className="shop-empty-inline">Deine Liste ist leer.</p>}
         </div><RecentItems recent={recent} catalog={catalog} market={selectedMarket} onPrice={setPriceDetails} limit={recentLimit} onMore={()=>setRecentLimit(recentLimit+20)} onAdd={item=>void add(null,item)}/><p className="shop-research-status" role="status">{researchStatus}</p>
       </>}</div>
@@ -230,7 +230,11 @@ export default function Shopping() {
       {createOpen&&<Modal title="Neue Einkaufsliste" onClose={()=>setCreateOpen(false)}><form onSubmit={create}><label>Name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} maxLength={100} required placeholder="Wocheneinkauf"/></label><button className="shop-primary" disabled={!newName.trim()}>Liste erstellen</button></form></Modal>}
       {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
-      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=priceFor(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.label}</p><strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>{p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Preisquelle öffnen</a>}{p.kind==='guide'&&<p>Allgemeine Schätzung mit angenommener Packung. Kein bestätigter Ladenpreis.</p>}{p.kind==='online'&&<p>Online-Vergleichspreis. Der Preis vor Ort kann abweichen.</p>}</div>;})()}</Modal>}
+      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=tilePrice(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.alternative ? `Vergleichsprodukt · ${p.label}` : p.label}</p>{p.alternative && <p>Die Summe für {selectedMarket} basiert weiterhin auf {money(priceFor(priceDetails, selectedMarket, catalog).total)} für diesen Artikel.</p>}<strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>
+        {openItems.some(item => item.id === priceDetails.id) && <button type="button" onClick={() => {
+          setEditing(priceDetails);
+          setPriceDetails(null);
+        }}>Artikel bearbeiten</button>}{p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Preisquelle öffnen</a>}{p.kind==='guide'&&<p>Allgemeine Schätzung mit angenommener Packung. Kein bestätigter Ladenpreis.</p>}{p.kind==='online'&&<p>Online-Vergleichspreis. Der Preis vor Ort kann abweichen.</p>}</div>;})()}</Modal>}
       {navigation}
       {(store.pending > 0 || settings) && <p className="shop-sync" role="status">
         {store.pending ? `${store.pending} Änderungen ausstehend · ` : ''}{store.status}
@@ -270,22 +274,63 @@ const productIcons = [
   [/eier|\bei\b/, 'egg'],
 ];
 
+function tilePrice(item, market, catalog) {
+  const estimate = priceFor(item, market, catalog);
+  if (estimate.kind !== 'guide') return estimate;
+  for (const retailer of [market, ...shoppingMarkets.filter(name => name !== market)]) {
+    const candidate = priceFor({...item, product_id:null}, retailer, catalog);
+    if (candidate.kind === 'known' && candidate.status === 'verified') {
+      return {...candidate, alternative:true};
+    }
+  }
+  return estimate;
+}
+
 function Item({item, price, onToggle, onEdit, onPrice, recent = false}) {
+  const press = useRef(null);
+  const longPress = useRef(false);
+  function cancelPress() {
+    clearTimeout(press.current?.timer);
+    press.current = null;
+  }
+  useEffect(() => () => clearTimeout(press.current?.timer), []);
   const source = priceSources[price.kind];
-  const priceLabel = `${money(price.total)} · ${source.label}`;
-  const priceContent = <><strong>{money(price.total)}</strong><Icon name={source.icon} size={13}/></>;
+  const priceLabel = `${money(price.total)} · ${price.alternative ? 'Vergleichspreis bei ' + price.retailer : source.label}`;
+  const priceContent = <>
+    {price.alternative && <span className="shop-alternative-market">{price.retailer}</span>}
+    <strong>{money(price.total)}</strong><Icon name={source.icon} size={13}/>
+  </>;
   return <article className={`q-card shop-item${recent ? ' shop-item-recent' : ''}`}>
-    <button type="button" className="shop-item-toggle" onClick={onToggle}
+    <button type="button" className="shop-item-toggle" onClick={event => {
+        if (longPress.current && event.detail !== 0) { longPress.current = false; return; }
+        onToggle();
+      }}
+      onPointerDown={event => {
+        cancelPress();
+        longPress.current = false;
+        if (!onEdit || !event.isPrimary || event.button !== 0) return;
+        const {clientX, clientY} = event;
+        press.current = {clientX, clientY, timer:setTimeout(() => {
+          longPress.current = true;
+          cancelPress();
+          onEdit();
+        }, 500)};
+      }}
+      onPointerMove={event => {
+        if (press.current && Math.hypot(event.clientX - press.current.clientX, event.clientY - press.current.clientY) > 10) cancelPress();
+      }}
+      onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress}
+      onContextMenu={event => { if (onEdit) event.preventDefault(); }}
       aria-label={`${item.name}: ${recent ? 'zur Liste hinzufügen' : 'als gekauft markieren'}`}>
       <Icon name={productIcons.find(([pattern]) => pattern.test(normalize(item.name)))?.[1] || categoryIcons[item.category] || 'basket'} size={36}/>
-      <span className="shop-item-name">{item.name}<small>{quantityText(item)}{item.note ? ' · Menge prüfen' : ''}</small></span>
+      <span className="shop-item-name" title={item.name}>{item.name}</span>
+      <small className="shop-item-quantity">{quantityText(item)}{item.note ? ' · Menge prüfen' : ''}</small>
     </button>
     <div className="shop-item-actions">
       {onPrice
         ? <button type="button" className="shop-item-price" title={priceLabel}
             aria-label={`Preisdetails für ${item.name}: ${priceLabel}`} onClick={onPrice}>{priceContent}</button>
         : <span className="shop-item-price" title={priceLabel} aria-label={priceLabel}>{priceContent}</span>}
-      {onEdit && <button type="button" aria-label={`Menge bearbeiten: ${item.name}`} onClick={onEdit}><Icon name="edit" size={16}/></button>}
     </div>
   </article>;
 }
@@ -296,10 +341,9 @@ function RecentItems({recent, catalog, market, limit, onMore, onAdd, onPrice}) {
     {recent.length === 0 && <p>Hier erscheinen Artikel, die du wieder auf die Liste setzen kannst.</p>}
     <div className="shop-item-grid">
       {recent.slice(0, limit).map(item => <Item key={item.merge_key} item={item}
-        price={priceFor(item, market, catalog)} recent onToggle={() => onAdd(item)}
+        price={tilePrice(item, market, catalog)} recent onToggle={() => onAdd(item)}
         onPrice={onPrice ? () => onPrice(item) : undefined}/>)}
     </div>
     {onMore && recent.length > limit && <button onClick={onMore}>Weitere laden</button>}
   </section>;
 }
-
