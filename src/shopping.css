@@ -165,3 +165,33 @@
 .shop-cost .shop-market-grid { grid-template-columns:repeat(2,minmax(0,1fr)); padding-top:8px; }
 .shopping-page .shop-cost .shop-market-grid button { flex-wrap:wrap; min-height:44px; }
 .shop-cost .shop-market-grid strong { font-size:clamp(14px,4vw,19px); }
+
+/* The same tile layout for open and recently used items. */
+.shopping-page .shop-item {
+  color:#29383e;
+  background:linear-gradient(145deg,#d6e4ed,#b8cfdf);
+  border-radius:16px;
+}
+.shopping-page .shop-item-recent {
+  background:linear-gradient(145deg,#edf3ef,#dae8e1);
+}
+.shopping-page .shop-item .shop-item-toggle {
+  align-items:flex-start;
+  padding:14px 12px 2px;
+  min-height:62px;
+  gap:8px;
+}
+.shop-item-name { font-size:15px; font-weight:600; min-width:0; }
+.shop-item .shop-item-name small { color:#405c69; font-weight:400; }
+.shopping-page .shop-item-actions { padding:0 6px 3px; min-height:44px; }
+.shopping-page .shop-item-actions button { padding:4px 7px; min-width:44px; }
+.shopping-page .shop-item-actions .shop-item-price {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:4px 7px;
+  white-space:nowrap;
+}
+.shop-item-price strong { font-size:11px; font-weight:500; }
+.shop-recents { padding:0; background:transparent; }
+.shop-recents > button { margin-top:10px; }
