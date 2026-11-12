@@ -168,9 +168,9 @@ export default function Shopping() {
     {navigation}
   </main>;
   return <main className="shopping-page">
-    <header className="q-topbar shop-header">{listMenu}<ProfileMenu shopping/></header>
+    <header className="q-topbar shop-header shop-list-header">{listMenu}<ProfileMenu shopping/></header>
     <div className="shop-main">{store.error&&<p className="shop-alert" role="status">{store.error}</p>}{!current?<section className="q-card shop-empty"><Icon name="basket" size={40}/><h2>Dein nächster Einkauf</h2><p>Erstelle eine Liste und füge Artikel oder ganze Rezepte hinzu.</p><button className="shop-primary" onClick={()=>setCreateOpen(true)}>Erste Liste erstellen</button></section>:<>
-        <div className="shop-sticky-tools">
+        <div className="shop-list-tools">
         <section className="shop-cost">
           <div className="q-energy-inset">
             <div className="q-energy-heading">

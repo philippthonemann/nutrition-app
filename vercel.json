@@ -1,5 +1,5 @@
 {
   "trailingSlash": false,
-  "rewrites": [{"source":"/einkaufen","destination":"/index.html"}],
+  "rewrites": [{"source":"/einkaufen","destination":"/shopping.html"}],
   "functions": {"api/shopping-prices.js":{"maxDuration":60}}
 }
