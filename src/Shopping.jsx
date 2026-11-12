@@ -12,7 +12,7 @@ import {CATEGORIES,categoryFor,makeItem,normalize,pantry,priceFor,totals,money,r
 import './theme.css';
 import './shopping.css';
 
-const shoppingMarkets = ['REWE', 'Lidl'];
+const shoppingMarkets = ['REWE', 'Lidl', 'Penny'];
 
 const displayUnit=unit=>unit==='piece'?'Stk.':unit;
 const quantityText=item=>`${Number(item.quantity).toLocaleString('de-DE',{maximumFractionDigits:2})} ${displayUnit(item.unit)}`;
@@ -70,6 +70,10 @@ export default function Shopping() {
   const [recipeOpen,setRecipeOpen]=useState(false);
   const [editing,setEditing]=useState(null);
   const [ingredientsOpen,setIngredientsOpen]=useState(false);
+  const [grouped, setGrouped] = useState(() => {
+    try { return localStorage.getItem('shopping-grouped') !== 'false'; }
+    catch { return true; }
+  });
   const [settings,setSettings]=useState(false);
   const [newName,setNewName]=useState('');
   const [createOpen,setCreateOpen]=useState(false);
@@ -162,7 +166,7 @@ export default function Shopping() {
   return <main className="shopping-page">
     <header className="q-topbar shop-header">{listMenu}<ProfileMenu shopping/></header>
     <div className="shop-main">{store.error&&<p className="shop-alert" role="status">{store.error}</p>}{!current?<section className="q-card shop-empty"><Icon name="basket" size={40}/><h2>Dein nächster Einkauf</h2><p>Erstelle eine Liste und füge Artikel oder ganze Rezepte hinzu.</p><button className="shop-primary" onClick={()=>setCreateOpen(true)}>Erste Liste erstellen</button></section>:<>
-        <section className="q-card q-energy-card shop-cost">
+        <section className="shop-cost">
           <div className="q-energy-inset">
             <div className="q-energy-heading">
               <span><Icon name="wallet" size={17}/> Geschätzter Einkauf</span>
@@ -210,7 +214,15 @@ export default function Shopping() {
             </>}
           </form>
         </div>
-        <div className="shop-articles">{order.map(category=>{const items=openItems.filter(i=>i.category===category);return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
+        {openItems.length > 0 && <div className="shop-view-toggle" role="group" aria-label="Artikelansicht">
+          {[['Kategorien', true], ['Alle', false]].map(([label, value]) =>
+            <button key={label} type="button" aria-pressed={grouped === value} onClick={() => {
+              setGrouped(value);
+              try { localStorage.setItem('shopping-grouped', String(value)); } catch { /* preference is optional */ }
+            }}>{label}</button>
+          )}
+        </div>}
+        <div className="shop-articles">{(grouped ? order : ['Alle Artikel']).map(category=>{const items=grouped ? openItems.filter(i=>i.category===category) : openItems;return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
         {!openItems.length&&<p className="shop-empty-inline">Deine Liste ist leer.</p>}
         </div><RecentItems recent={recent} catalog={catalog} market={selectedMarket} onPrice={setPriceDetails} limit={recentLimit} onMore={()=>setRecentLimit(recentLimit+20)} onAdd={item=>void add(null,item)}/><p className="shop-research-status" role="status">{researchStatus}</p>
       </>}</div>
@@ -250,7 +262,10 @@ const productIcons = [
   [/banan/, 'banana'],
   [/apfel/, 'apple'],
   [/brot|brotchen|toast/, 'bread'],
-  [/reis|haferflocken/, 'grain'],
+  [/reis/, 'rice'],
+  [/haferflocken/, 'grain'],
+  [/brokkoli/, 'broccoli'],
+  [/sojasauce|sojasosse/, 'bottle'],
   [/kaffee|espresso/, 'coffee'],
   [/eier|\bei\b/, 'egg'],
 ];
@@ -262,7 +277,7 @@ function Item({item, price, onToggle, onEdit, onPrice, recent = false}) {
   return <article className={`q-card shop-item${recent ? ' shop-item-recent' : ''}`}>
     <button type="button" className="shop-item-toggle" onClick={onToggle}
       aria-label={`${item.name}: ${recent ? 'zur Liste hinzufügen' : 'als gekauft markieren'}`}>
-      <Icon name={productIcons.find(([pattern]) => pattern.test(normalize(item.name)))?.[1] || categoryIcons[item.category] || 'basket'} size={27}/>
+      <Icon name={productIcons.find(([pattern]) => pattern.test(normalize(item.name)))?.[1] || categoryIcons[item.category] || 'basket'} size={36}/>
       <span className="shop-item-name">{item.name}<small>{quantityText(item)}{item.note ? ' · Menge prüfen' : ''}</small></span>
     </button>
     <div className="shop-item-actions">
@@ -287,3 +302,4 @@ function RecentItems({recent, catalog, market, limit, onMore, onAdd, onPrice}) {
     {onMore && recent.length > limit && <button onClick={onMore}>Weitere laden</button>}
   </section>;
 }
+
