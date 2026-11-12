@@ -6,9 +6,11 @@ import InfoTip from './InfoTip.jsx';
 import Icon from './Icon.jsx';
 import {authFetch} from './authFetch';
 import useShopping from './useShopping';
-import {CATEGORIES,COMPARISON_RETAILERS,makeItem,normalize,pantry,priceFor,compareRetailers,money,researchKey} from '../lib/shopping.js';
+import {CATEGORIES,makeItem,normalize,pantry,priceFor,totals,money,researchKey} from '../lib/shopping.js';
 import './theme.css';
 import './shopping.css';
+
+const shoppingMarkets = ['REWE', 'Lidl'];
 
 const displayUnit=unit=>unit==='piece'?'Stk.':unit;
 const quantityText=item=>`${Number(item.quantity).toLocaleString('de-DE',{maximumFractionDigits:2})} ${displayUnit(item.unit)}`;
@@ -76,7 +78,11 @@ export default function Shopping() {
   const listMenuRef=useRef(null);
   const doc=current?.document;
   const visible=doc?.items.filter(i=>!i.removed)||[];
-  const summary=compareRetailers(visible,catalog);
+  const selectedMarket = shoppingMarkets.includes(doc?.retailer) ? doc.retailer : shoppingMarkets[0];
+  const marketTotals = shoppingMarkets.map(retailer => ({
+    retailer,
+    total: totals(visible, retailer, catalog).total,
+  }));
   const order=[...new Set([...(doc?.categories||[]),...CATEGORIES])];
   const recent=lists.flatMap(l=>l.document.items).reverse().filter((item,index,all)=>all.findIndex(i=>i.merge_key===item.merge_key)===index);
   const suggestions=catalog.ingredients.filter(i=>normalize(i.name).includes(normalize(query))||(i.aliases||[]).some(a=>normalize(a).includes(normalize(query))));
@@ -97,7 +103,7 @@ export default function Shopping() {
     if(!doc||!navigator.onLine)return;
     let cancelled=false;
     const timer=setTimeout(async()=>{
-      const markets=[...new Set([doc.retailer,...COMPARISON_RETAILERS])];
+      const markets = [selectedMarket, ...shoppingMarkets.filter(market => market !== selectedMarket)];
       const missing=markets.flatMap(retailer=>doc.items.filter(i=>!i.removed&&priceFor(i,retailer,catalog).kind==='guide').map(item=>({item,retailer}))).find(({item,retailer})=>{
         const hit=catalog.research.find(r=>r.query_key===researchKey(item,retailer));
         return !hit||Date.now()-Date.parse(hit.checked_at)>86400000;
@@ -114,7 +120,7 @@ export default function Shopping() {
     return()=>{cancelled=true;clearTimeout(timer);};
   // Only catalog research changes should restart a batch; name/retailer changes select a new query.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[researchSignature,doc?.retailer,catalog.research]);
+  },[researchSignature,selectedMarket,catalog.research]);
   const listMenu = <details className="shop-list-menu" ref={listMenuRef}>
     <summary aria-label="Einkaufsliste wechseln">{doc?.name || 'Einkaufen'} <Icon name="down" size={18}/></summary>
     <div className="q-card shop-list-options">
@@ -126,29 +132,28 @@ export default function Shopping() {
     </div>
   </details>;
   return <main className="shopping-page">
-    <header className="q-topbar shop-header"><h1 className="shop-heading-title">Einkaufen</h1>{listMenu}<ProfileMenu shopping/></header>
+    <header className="q-topbar shop-header">{listMenu}<ProfileMenu shopping/></header>
     <div className="shop-main">{store.error&&<p className="shop-alert" role="status">{store.error}</p>}{!current?<section className="q-card shop-empty"><Icon name="basket" size={40}/><h2>Dein nächster Einkauf</h2><p>Erstelle eine Liste und füge Artikel oder ganze Rezepte hinzu.</p><button className="shop-primary" onClick={()=>setCreateOpen(true)}>Erste Liste erstellen</button></section>:<>
         <section className="q-card q-energy-card shop-cost">
           <div className="q-energy-inset">
             <div className="q-energy-heading">
               <span><Icon name="wallet" size={17}/> Geschätzter Einkauf</span>
-              <InfoTip label="Preisberechnung">Der Gesamtwert ist der Durchschnitt der vier vollständigen Warenkörbe inklusive bekanntem Pfand. Abgehakte Artikel bleiben enthalten. Die Schätzung verwendet Händlerpreise, Online-Vergleichspreise und Richtpreise für ganze Packungen. Tippe auf einen Markt, um dessen Artikelpreise anzuzeigen.</InfoTip>
+              <InfoTip label="Preisberechnung">Die Schätzung umfasst die Artikel dieser Liste und rechnet mit ganzen Packungen. Tippe auf einen Markt, um dessen Artikelpreise anzuzeigen.</InfoTip>
             </div>
-            <div className="q-energy-reading"><span>{money(summary.total + summary.deposit)}</span></div>
             <div className="shop-market-grid" aria-label="Geschätzte Preise nach Supermarkt">
-              {summary.markets.map(market => <button key={market.retailer}
-                aria-pressed={doc.retailer === market.retailer}
+              {marketTotals.map(market => <button key={market.retailer}
+                aria-pressed={selectedMarket === market.retailer}
                 onClick={() => void mutate(current.id, {type:'meta', patch:{retailer:market.retailer}})}>
-                <span>{market.retailer}</span><strong>{money(market.total + market.deposit)}</strong>
+                <span>{market.retailer}</span><strong>{money(market.total)}</strong>
               </button>)}
             </div>
           </div>
         </section>
         {settings&&<section className="q-card shop-settings"><h3>Liste bearbeiten</h3><form onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();if(name)void mutate(current.id,{type:'meta',patch:{name}});}}><label>Listenname<input name="name" defaultValue={doc.name} maxLength={100} required/></label><button>Umbenennen</button></form><h3>Kategorienreihenfolge</h3><ol>{order.map((c,index)=><li key={c}><span>{c}</span><button disabled={index===0} aria-label={`${c} nach oben`} onClick={()=>{const next=[...order];[next[index-1],next[index]]=[next[index],next[index-1]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="up"/></button><button disabled={index===order.length-1} aria-label={`${c} nach unten`} onClick={()=>{const next=[...order];[next[index],next[index+1]]=[next[index+1],next[index]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="down"/></button></li>)}</ol><button onClick={()=>void mutate(current.id,{type:'meta',patch:{archived:true}})}>Liste archivieren</button></section>}
         <div className="shop-add-entry"><button className="q-quick-main" onClick={()=>setAddOpen(true)}><Icon name="plus"/><span>Artikel hinzufügen</span></button><button onClick={()=>setRecipeOpen(true)}><Icon name="utensils"/> Rezept</button></div>
-        <div className="shop-articles">{order.map(category=>{const items=visible.filter(i=>i.category===category&&!i.checked);return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,doc.retailer,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
+        <div className="shop-articles">{order.map(category=>{const items=visible.filter(i=>i.category===category&&!i.checked);return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
         {!visible.length&&<p className="shop-empty-inline">Deine Liste ist bereit. Füge deinen ersten Artikel hinzu.</p>}
-        {visible.some(i=>i.checked)&&<section className="shop-category shop-completed"><h3>Im Einkaufswagen<small>{visible.filter(i=>i.checked).length}</small></h3><div className="shop-item-grid">{visible.filter(i=>i.checked).map(item=><Item key={item.id} item={item} price={priceFor(item,doc.retailer,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:false}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>}
+        {visible.some(i=>i.checked)&&<section className="shop-category shop-completed"><h3>Im Einkaufswagen<small>{visible.filter(i=>i.checked).length}</small></h3><div className="shop-item-grid">{visible.filter(i=>i.checked).map(item=><Item key={item.id} item={item} price={priceFor(item,selectedMarket,catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:false}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>}
         </div><RecentItems recent={recent} visible={visible} limit={recentLimit} onMore={()=>setRecentLimit(recentLimit+20)} onAdd={item=>void add(null,item)}/><p className="shop-research-status" role="status">{researchStatus}</p>
       </>}</div>
       {lists.some(l=>l.document.archived)&&<details className="shop-archive"><summary>Archivierte Listen</summary>{lists.filter(l=>l.document.archived).map(l=><button key={l.id} onClick={()=>void mutate(l.id,{type:'meta',patch:{archived:false}})}>{l.document.name} wiederherstellen</button>)}</details>}
@@ -156,7 +161,7 @@ export default function Shopping() {
       {addOpen&&current&&<Modal title="Artikel hinzufügen" onClose={()=>setAddOpen(false)}>        <div className="shop-add"><form onSubmit={e=>{e.preventDefault();void add(catalog.ingredients.find(i=>normalize(i.name)===normalize(query))||null);}}><label className="shop-search"><Icon name="search"/><input autoFocus ref={input} aria-label="Artikel hinzufügen" value={query} maxLength={160} onChange={e=>setQuery(e.target.value)} placeholder="Was brauchst du?" required autoComplete="off"/></label><details className="shop-amount-options"><summary>Menge anpassen</summary><div className="shop-add-amount"><input aria-label="Menge" type="number" min="0.001" max="1000000" step="any" required value={quantity} onChange={e=>setQuantity(e.target.value)}/><select aria-label="Einheit" value={unit} onChange={e=>setUnit(e.target.value)}>{['piece','g','kg','ml','l'].map(u=><option key={u} value={u}>{displayUnit(u)}</option>)}</select></div></details><button className="shop-primary shop-submit" type="submit" disabled={!query.trim()||Number(quantity)<=0}><Icon name="plus"/> Hinzufügen</button></form>{query.trim()&&<div className="shop-suggestions">{uniqueSuggestions.map(i=><button key={i.id} onClick={()=>void add(i)}>{i.name}<Icon name="plus" size={16}/></button>)}</div>}<button className="shop-recipe-button" onClick={()=>{setAddOpen(false);setRecipeOpen(true);}}><Icon name="utensils"/> Aus Rezept hinzufügen</button></div><RecentItems recent={recent} visible={visible} limit={20} onAdd={item=>void add(null,item)}/></Modal>}
       {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
-      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=priceFor(priceDetails,doc.retailer,catalog);return <div className="shop-price-detail"><p>{p.label}</p><strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p><p>Pfand: {p.deposit==null?'unbekannt, nicht addiert':money(p.deposit)}</p>{p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Preisquelle öffnen</a>}{p.kind==='guide'&&<p>Allgemeine Schätzung mit angenommener Packung. Kein bestätigter Ladenpreis.</p>}{p.kind==='online'&&<p>Online-Vergleichspreis. Der Preis vor Ort kann abweichen.</p>}</div>;})()}</Modal>}
+      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=priceFor(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.label}</p><strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>{p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Preisquelle öffnen</a>}{p.kind==='guide'&&<p>Allgemeine Schätzung mit angenommener Packung. Kein bestätigter Ladenpreis.</p>}{p.kind==='online'&&<p>Online-Vergleichspreis. Der Preis vor Ort kann abweichen.</p>}</div>;})()}</Modal>}
       <BottomNav label="Einkaufsnavigation" active={settings && current ? 'settings' : 'list'} entries={[
         { key:'list', icon:'basket', title:'Liste', action:() => { setSettings(false); window.scrollTo(0, 0); } },
         { key:'recipe', icon:'utensils', title:'Rezepte', action:() => current ? setRecipeOpen(true) : setCreateOpen(true) },
