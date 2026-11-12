@@ -89,11 +89,11 @@ export default function Shopping() {
   }));
   const selectedMarket = shoppingMarkets.includes(doc?.retailer) ? doc.retailer : shoppingMarkets[0];
   const marketTotals = shoppingMarkets.map(retailer => {
-    const prices = openItems.map(item => priceFor(item, retailer, catalog));
+    const prices = openItems.map(item => tilePrice(item, retailer, catalog));
     return {
       retailer,
       total: prices.reduce((sum, price) => sum + price.total, 0),
-      estimates: prices.filter(price => price.kind === 'guide').length,
+      covered: prices.filter(price => price.kind === 'known' && !price.alternative && price.status === 'verified').length,
     };
   });
   const order=[...new Set([...(doc?.categories||[]).filter(category => CATEGORIES.includes(category)),...CATEGORIES])];
@@ -187,7 +187,7 @@ export default function Shopping() {
               {marketTotals.map(market => <button key={market.retailer}
                 aria-pressed={selectedMarket === market.retailer}
                 onClick={() => void mutate(current.id, {type:'meta', patch:{retailer:market.retailer}})}>
-                <span>{market.retailer}</span><strong>{money(market.total)}</strong>
+                <span>{market.retailer}</span><strong>{money(market.total)}</strong><small>{market.covered}/{openItems.length} belegt</small>
               </button>)}
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function Shopping() {
       {createOpen&&<Modal title="Neue Einkaufsliste" onClose={()=>setCreateOpen(false)}><form onSubmit={create}><label>Name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} maxLength={100} required placeholder="Wocheneinkauf"/></label><button className="shop-primary" disabled={!newName.trim()}>Liste erstellen</button></form></Modal>}
       {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
-      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=tilePrice(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.alternative ? `Vergleichsprodukt · ${p.label}` : p.label}</p>{p.alternative && <p>Die Summe für {selectedMarket} basiert weiterhin auf {money(priceFor(priceDetails, selectedMarket, catalog).total)} für diesen Artikel.</p>}<strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>
+      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=tilePrice(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.alternative ? `Vergleichsprodukt · ${p.label}` : p.label}</p>{p.alternative && <p>Dieser Vergleichspreis fließt in die Schätzung für {selectedMarket} ein.</p>}<strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>
         {openItems.some(item => item.id === priceDetails.id) && <button type="button" onClick={() => {
           setEditing(priceDetails);
           setPriceDetails(null);
@@ -272,6 +272,15 @@ const priceSources = {
 };
 
 const productIcons = [
+  [/hahnchen|huhn|chicken/, 'chicken'],
+  [/beeren|heidelbeer|himbeer|brombeer|erdbeer/, 'berries'],
+  [/kreatin|creatin/, 'supplement'],
+  [/whey|proteinpulver|vanille protein|protein shake/, 'shaker'],
+  [/karott|mohre/, 'carrot'],
+  [/zitrone|limette/, 'lemon'],
+  [/zwiebel/, 'onion'],
+  [/kartoffel/, 'potato'],
+  [/tomat/, 'tomato'],
   [/kokosmilch|kokoscreme/, 'coconut'],
   [/mandel(?:milch|drink)|hafer(?:milch|drink)|soja(?:milch|drink)|milch/, 'milk'],
   [/banan/, 'banana'],
@@ -281,6 +290,7 @@ const productIcons = [
   [/haferflocken/, 'grain'],
   [/brokkoli/, 'broccoli'],
   [/sojasauce|sojasosse/, 'bottle'],
+  [/^(?:rote |gelbe |grune )?paprika\b/, 'pepper'],
   [/kaffee|espresso/, 'coffee'],
   [/eier|\bei\b/, 'egg'],
 ];
