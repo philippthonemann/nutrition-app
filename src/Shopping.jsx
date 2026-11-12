@@ -8,7 +8,7 @@ import {authFetch} from './authFetch';
 import Ingredients from './Ingredients.jsx';
 import {flushSync} from 'react-dom';
 import useShopping from './useShopping';
-import {CATEGORIES,categoryFor,makeItem,normalize,pantry,priceFor,totals,money,researchKey} from '../lib/shopping.js';
+import {CATEGORIES,categoryFor,makeItem,normalize,pantry,priceFor,money,researchKey} from '../lib/shopping.js';
 import './theme.css';
 import './shopping.css';
 
@@ -88,10 +88,14 @@ export default function Shopping() {
     ...item, category: categoryFor(item.name, item.category),
   }));
   const selectedMarket = shoppingMarkets.includes(doc?.retailer) ? doc.retailer : shoppingMarkets[0];
-  const marketTotals = shoppingMarkets.map(retailer => ({
-    retailer,
-    total: totals(openItems, retailer, catalog).total,
-  }));
+  const marketTotals = shoppingMarkets.map(retailer => {
+    const prices = openItems.map(item => priceFor(item, retailer, catalog));
+    return {
+      retailer,
+      total: prices.reduce((sum, price) => sum + price.total, 0),
+      estimates: prices.filter(price => price.kind === 'guide').length,
+    };
+  });
   const order=[...new Set([...(doc?.categories||[]).filter(category => CATEGORIES.includes(category)),...CATEGORIES])];
   const openKeys = new Set(openItems.map(item => item.merge_key));
   const history = [
@@ -166,11 +170,18 @@ export default function Shopping() {
   return <main className="shopping-page">
     <header className="q-topbar shop-header">{listMenu}<ProfileMenu shopping/></header>
     <div className="shop-main">{store.error&&<p className="shop-alert" role="status">{store.error}</p>}{!current?<section className="q-card shop-empty"><Icon name="basket" size={40}/><h2>Dein nächster Einkauf</h2><p>Erstelle eine Liste und füge Artikel oder ganze Rezepte hinzu.</p><button className="shop-primary" onClick={()=>setCreateOpen(true)}>Erste Liste erstellen</button></section>:<>
+        <div className="shop-sticky-tools">
         <section className="shop-cost">
           <div className="q-energy-inset">
             <div className="q-energy-heading">
               <span><Icon name="wallet" size={17}/> Geschätzter Einkauf</span>
-              <InfoTip label="Preisberechnung">Die Schätzung umfasst die offenen Artikel dieser Liste und rechnet mit ganzen Packungen. Tippe auf einen Markt, um dessen Artikelpreise anzuzeigen.</InfoTip>
+              <InfoTip label="Preisberechnung">Die Schätzung umfasst die offenen Artikel dieser Liste und rechnet mit ganzen Packungen. Tippe auf einen Markt, um dessen Artikelpreise anzuzeigen.
+                {openItems.length > 0 && <span className="shop-estimate-coverage">
+                  {marketTotals.map(market => <span key={market.retailer}>
+                    {market.retailer} · {market.estimates} von {openItems.length} Artikeln mit Richtpreis
+                  </span>)}
+                </span>}
+              </InfoTip>
             </div>
             <div className="shop-market-grid" aria-label="Geschätzte Preise nach Supermarkt">
               {marketTotals.map(market => <button key={market.retailer}
@@ -181,7 +192,6 @@ export default function Shopping() {
             </div>
           </div>
         </section>
-        {settings&&<section className="q-card shop-settings"><h3>Liste bearbeiten</h3><form onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();if(name)void mutate(current.id,{type:'meta',patch:{name}});}}><label>Listenname<input name="name" defaultValue={doc.name} maxLength={100} required/></label><button>Umbenennen</button></form><h3>Kategorienreihenfolge</h3><ol>{order.map((c,index)=><li key={c}><span>{c}</span><button disabled={index===0} aria-label={`${c} nach oben`} onClick={()=>{const next=[...order];[next[index-1],next[index]]=[next[index],next[index-1]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="up"/></button><button disabled={index===order.length-1} aria-label={`${c} nach unten`} onClick={()=>{const next=[...order];[next[index],next[index+1]]=[next[index+1],next[index]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="down"/></button></li>)}</ol><button onClick={()=>void mutate(current.id,{type:'meta',patch:{archived:true}})}>Liste archivieren</button></section>}
         <div className="shop-add">
           <form onSubmit={event => {
             event.preventDefault();
@@ -214,6 +224,8 @@ export default function Shopping() {
             </>}
           </form>
         </div>
+        </div>
+        {settings&&<section className="q-card shop-settings"><h3>Liste bearbeiten</h3><form onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();if(name)void mutate(current.id,{type:'meta',patch:{name}});}}><label>Listenname<input name="name" defaultValue={doc.name} maxLength={100} required/></label><button>Umbenennen</button></form><h3>Kategorienreihenfolge</h3><ol>{order.map((c,index)=><li key={c}><span>{c}</span><button disabled={index===0} aria-label={`${c} nach oben`} onClick={()=>{const next=[...order];[next[index-1],next[index]]=[next[index],next[index-1]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="up"/></button><button disabled={index===order.length-1} aria-label={`${c} nach unten`} onClick={()=>{const next=[...order];[next[index],next[index+1]]=[next[index+1],next[index]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="down"/></button></li>)}</ol><button onClick={()=>void mutate(current.id,{type:'meta',patch:{archived:true}})}>Liste archivieren</button></section>}
         {openItems.length > 0 && <div className="shop-view-toggle" role="group" aria-label="Artikelansicht">
           {[['Kategorien', true], ['Alle', false]].map(([label, value]) =>
             <button key={label} type="button" aria-pressed={grouped === value} onClick={() => {

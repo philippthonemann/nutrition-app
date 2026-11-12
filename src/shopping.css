@@ -243,3 +243,25 @@
 .shop-item-quantity { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
 .shop-alternative-market { font-size:10px; overflow:hidden; text-overflow:ellipsis; }
 .shopping-page .shop-item-price { max-width:100%; }
+
+.shop-sticky-tools {
+  position:sticky;
+  top:max(8px, env(safe-area-inset-top, 0px));
+  z-index:20;
+  margin-bottom:16px;
+  border-radius:20px;
+  box-shadow:0 6px 20px #24354120;
+}
+.shop-sticky-tools .shop-cost { margin:0; }
+.shop-sticky-tools .q-energy-inset { border-radius:20px 20px 0 0; }
+.shopping-page .shop-sticky-tools .shop-add {
+  margin:0;
+  padding:10px;
+  border-radius:0 0 20px 20px;
+}
+.shop-sticky-tools .shop-suggestions {
+  max-height:min(140px, 22dvh);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.shop-estimate-coverage { display:grid; gap:4px; margin-top:8px; }
