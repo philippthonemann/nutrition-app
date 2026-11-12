@@ -1,0 +1,18 @@
+.ingredients-page { display:grid; gap:12px; padding-block:12px; }
+.ingredients-page :is(h1,h2,h3,p,ul,dl) { margin-block:0; }
+.ingredients-page button { justify-self:start; }
+.ingredients-page :is(input,select) { display:block; box-sizing:border-box; width:100%; min-width:0; margin-top:4px; padding:10px; font:inherit; }
+.ingredients-page label { display:block; min-width:0; }
+.ingredient-muted { color:var(--q-muted, #62676b); }
+.ingredient-list,.ingredient-prices { list-style:none; padding:0; }
+.ingredient-list button { display:grid; width:100%; gap:4px; text-align:left; padding:12px; }
+.ingredient-list button span,.ingredient-prices span { font-size:.875em; }
+.ingredient-card { display:grid; gap:12px; padding:16px; min-width:0; overflow-wrap:anywhere; }
+.ingredient-card header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+.ingredient-card details { padding-block:8px; }
+.ingredient-card summary { padding-block:8px; }
+.ingredient-card fieldset { border:0; padding:0; margin:0; min-inline-size:0; }
+.ingredient-card fieldset > button { margin-block:10px; }
+.ingredient-fields,.ingredient-macros { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%, 140px),1fr)); gap:8px; }
+.ingredient-macros dd { margin:4px 0; font-weight:600; }
+.ingredient-prices li { display:grid; gap:4px; padding-block:8px; }
