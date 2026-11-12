@@ -1,3 +1,4 @@
+import Icon from './Icon.jsx';
 import {useEffect, useMemo, useState} from 'react';
 import {supabase} from './supabase';
 import {CATEGORIES, categoryFor, money, normalize, priceFor} from '../lib/shopping.js';
@@ -115,6 +116,38 @@ function latestNutrition(rows, column, id) {
       || (b.observed_at ?? '').localeCompare(a.observed_at ?? ''))[0];
 }
 
+function IngredientPrices({products, observations, guide}) {
+  const [limit, setLimit] = useState(pageSize);
+  const byId = new Map(products.map(product => [product.id, product.name]));
+  const prices = observations.filter(row => byId.has(row.product_id) && row.price_eur != null)
+    .sort((a, b) => b.observed_on.localeCompare(a.observed_on) || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+  const rows = prices.slice(0, limit).map(row => ({
+    ...row, product: byId.get(row.product_id),
+    source: row.channel === 'estimate' ? 'Richtpreis' : row.retailer + (row.channel === 'online' ? ' · online' : ''),
+    note: [row.observed_on, row.receipt_line_id ? 'Bon' : '', row.status === 'needs_review' ? 'Zu prüfen' : '',
+      ({offer: 'Angebot', member: 'Mitgliedspreis', coupon: 'Coupon'})[row.price_type],
+      row.valid_until ? 'bis ' + row.valid_until : ''].filter(Boolean).join(' · '),
+  }));
+  if (!prices.some(row => row.channel === 'estimate' && row.status !== 'needs_review')) rows.push({
+    ...guide, id: 'guide', source: 'Richtpreis', note: 'Angenommene Menge',
+  });
+  return <>
+    <table className="ingredient-price-table">
+      <thead><tr><th scope="col">Quelle</th><th scope="col">Preis / Menge</th><th scope="col">Grundpreis</th></tr></thead>
+      <tbody>{rows.map(row => {
+        const unit = row.package_unit;
+        const factor = unit === 'piece' ? 1 : 1000;
+        return <tr key={row.id}>
+          <th scope="row">{row.source}<small>{row.product}</small><small>{row.note}</small></th>
+          <td><strong>{money(row.price_eur)}</strong><small>{number.format(row.package_quantity)} {units[unit]}</small></td>
+          <td>{money(row.price_eur * factor / row.package_quantity)}<small>je {({g: 'kg', ml: 'l', piece: 'Stk.'})[unit]}</small></td>
+        </tr>;
+      })}</tbody>
+    </table>
+    {prices.length > limit && <button type="button" onClick={() => setLimit(limit + pageSize)}>Weitere laden ({limit} von {prices.length})</button>}
+  </>;
+}
+
 function IngredientDetail({ingredient, catalog, save}) {
   const [editing, setEditing] = useState(false);
   const nutrition = latestNutrition(catalog.nutrition, 'ingredient_id', ingredient.id);
@@ -134,18 +167,21 @@ function IngredientDetail({ingredient, catalog, save}) {
       </div>
     </SaveForm>}
     <h3>Nährwerte</h3>
-    <Nutrition row={nutrition}/>
+    {nutrition && <><h4>Allgemein</h4><Nutrition row={nutrition}/></>}
+    {!nutrition && !products.some(product => latestNutrition(catalog.nutrition, 'product_id', product.id)) && <Nutrition/>}
+    {products.map(product => {
+      const row = latestNutrition(catalog.nutrition, 'product_id', product.id);
+      return row && <div key={product.id}><h4>{product.name}</h4><Nutrition row={row}/></div>;
+    })}
     {editing && <NutritionEditor key={nutrition?.id} row={nutrition} owner={{ingredient_id: ingredient.id}} unit={unit} save={save}/>}
     <h3>Produkte und Preise</h3>
-    <p className="ingredient-muted">App-Richtpreis · {money(guide.price_eur)} je angenommene {number.format(guide.package_quantity)} {units[guide.package_unit]}</p>
-    {!products.length && <p>Keine Produkte zugeordnet.</p>}
-    {products.map(product => {
+    <IngredientPrices products={products} observations={catalog.prices} guide={guide}/>
+    {editing && products.map(product => {
       const prices = catalog.prices.filter(price => price.product_id === product.id)
         .sort((a, b) => b.observed_on.localeCompare(a.observed_on) || b.created_at.localeCompare(a.created_at));
       const productNutrition = latestNutrition(catalog.nutrition, 'product_id', product.id);
       return <details key={product.id}>
         <summary>{product.name}{product.package_quantity ? ` · ${number.format(product.package_quantity)} ${units[product.package_unit]}` : ''}</summary>
-        {productNutrition && <Nutrition row={productNutrition}/>}
         {editing && <details><summary>Produktnährwerte bearbeiten</summary><NutritionEditor key={productNutrition?.id} row={productNutrition} owner={{product_id: product.id}} unit={unit} save={save}/></details>}
         {!prices.length && <p className="ingredient-muted">Keine Preise hinterlegt</p>}
         <ul className="ingredient-prices">{prices.map(price => <li key={price.id}>
@@ -196,16 +232,15 @@ export default function Ingredients({userId, onCatalogChange}) {
 
   const ingredient = current?.ingredients.find(row => row.id === selected);
   return <section className="ingredients-page" aria-label="Zutatenverwaltung">
-    <h1>Zutaten</h1>
     {error && <p role="alert">Zutaten konnten nicht geladen werden. <button onClick={() => {setError(false); setRetry(retry + 1);}}>Erneut versuchen</button></p>}
     {!current && !error && <p role="status">Zutaten werden geladen …</p>}
     {current && (ingredient ? <>
       <button type="button" onClick={() => setSelected(null)}>Zur Zutatenliste</button>
       <IngredientDetail key={ingredient.id} ingredient={ingredient} catalog={current} save={save}/>
     </> : <>
-      <label>Zutat suchen<input type="search" value={query} onChange={event => {setQuery(event.target.value); setLimit(pageSize);}}/></label>
+      <label className="shop-search ingredient-search"><Icon name="search"/><input aria-label="Zutat suchen" placeholder="Zutat suchen" type="search" value={query} onChange={event => {setQuery(event.target.value); setLimit(pageSize);}}/></label>
       <p className="ingredient-muted" role="status">{Math.min(limit, filtered.length)} von {filtered.length} Zutaten</p>
-      <ul className="q-card ingredient-list">
+      <ul className="ingredient-list">
         {filtered.slice(0, limit).map(item => {
           const row = latestNutrition(current.nutrition, 'ingredient_id', item.id);
           return <li key={item.id}><button type="button" onClick={() => setSelected(item.id)}>

@@ -16,3 +16,14 @@
 .ingredient-fields,.ingredient-macros { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%, 140px),1fr)); gap:8px; }
 .ingredient-macros dd { margin:4px 0; font-weight:600; }
 .ingredient-prices li { display:grid; gap:4px; padding-block:8px; }
+
+.shop-header h1.shop-list-menu-title { display:flex; align-items:center; min-height:44px; font-size:clamp(18px, 5vw, 27px); font-weight:600; letter-spacing:normal; }
+.ingredients-page .ingredient-search { display:flex; align-items:center; }
+.ingredients-page .ingredient-search input { margin:0; }
+.shopping-page .ingredient-list li + li { border-top:1px solid var(--q-line, #e3e9ec); }
+.shopping-page .ingredient-list button { border:0; border-radius:0; background:transparent; }
+.ingredient-card h4 { margin:0 0 4px; }
+.ingredient-price-table { width:100%; border-collapse:collapse; table-layout:fixed; text-align:left; font-size:.875em; }
+.ingredient-price-table :is(th,td) { padding:8px 4px; vertical-align:top; border-bottom:1px solid var(--q-line, #e3e9ec); }
+.ingredient-price-table th:first-child { width:49%; }
+.ingredient-price-table small { display:block; color:var(--q-muted, #62676b); }

@@ -159,7 +159,7 @@ export default function Shopping() {
         { key:'settings', icon:'edit', title:'Verwalten', action:() => { setIngredientsOpen(false); current ? setSettings(value => !value) : setCreateOpen(true); } },
       ]}/>;
   if (ingredientsOpen) return <main className="shopping-page">
-    <header className="q-topbar shop-header"><ProfileMenu shopping/></header>
+    <header className="q-topbar shop-header"><h1 className="shop-list-menu-title">Zutaten</h1><ProfileMenu shopping/></header>
     <div className="shop-main"><Ingredients userId={userId} onCatalogChange={store.refreshCatalog}/></div>
     {navigation}
   </main>;
