@@ -245,7 +245,7 @@ export default function Shopping() {
       {createOpen&&<Modal title="Neue Einkaufsliste" onClose={()=>setCreateOpen(false)}><form onSubmit={create}><label>Name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} maxLength={100} required placeholder="Wocheneinkauf"/></label><button className="shop-primary" disabled={!newName.trim()}>Liste erstellen</button></form></Modal>}
       {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
-      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=tilePrice(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.alternative ? `Vergleichsprodukt · ${p.label}` : p.label}</p>{p.alternative && <p>Dieser Vergleichspreis fließt in die Schätzung für {selectedMarket} ein.</p>}<strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>
+      {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=tilePrice(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.alternative ? `Vergleichsprodukt · ${p.label}` : p.label}</p>{p.alternative && <p>Dieser Vergleichspreis fließt in die Schätzung für {selectedMarket} ein.</p>}<strong>{money(p.total)}</strong>{p.loose ? <p>{money(p.price_eur * 1000 / p.package_quantity)} je kg</p> : <p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p>}<p>Benötigt: {quantityText(priceDetails)}</p>
         {openItems.some(item => item.id === priceDetails.id) && <button type="button" onClick={() => {
           setEditing(priceDetails);
           setPriceDetails(null);
@@ -275,6 +275,11 @@ const priceSources = {
 };
 
 const productIcons = [
+  [/tofu/, 'tofu'],
+  [/skyr|joghurt|yogurt/, 'yogurt'],
+  [/garnele|shrimp|prawn/, 'shrimp'],
+  [/\b(?:olivenol|sesamol|rapsol|neutrales ol)\b/, 'oil'],
+  [/erdnussmus|erdnussbutter|honig/, 'spread'],
   [/hahnchen|huhn|chicken/, 'chicken'],
   [/beeren|heidelbeer|himbeer|brombeer|erdbeer/, 'berries'],
   [/kreatin|creatin/, 'supplement'],

@@ -1,7 +1,7 @@
 import Icon from './Icon.jsx';
 import {useEffect, useMemo, useState} from 'react';
 import {supabase} from './supabase';
-import {CATEGORIES, categoryFor, money, normalize, priceFor} from '../lib/shopping.js';
+import {CATEGORIES, categoryFor, money, normalize, officialRetailerSource, priceFor} from '../lib/shopping.js';
 import './Ingredients.css';
 
 const tables = {
@@ -25,7 +25,7 @@ async function loadRows(table, userId, signal) {
     const {data, error} = await supabase.from(table).select('*').eq('user_id', userId)
       .order('id').range(offset, offset + 499).abortSignal(signal);
     if (error) throw error;
-    rows.push(...data);
+    rows.push(...data.filter(row => table !== 'food_ingredients' || !row.source?.startsWith('merged_into:')));
     if (data.length < 500) return rows;
   }
 }
@@ -117,27 +117,30 @@ function latestNutrition(rows, column, id) {
 }
 
 function IngredientPrices({products, observations, guide}) {
-  const [limit, setLimit] = useState(pageSize);
   const byId = new Map(products.map(product => [product.id, product.name]));
-  const prices = observations.filter(row => byId.has(row.product_id) && row.price_eur != null)
-    .sort((a, b) => b.observed_on.localeCompare(a.observed_on) || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
-  const rows = prices.slice(0, limit).map(row => ({
-    ...row, product: byId.get(row.product_id),
-    source: row.channel === 'estimate' ? 'Richtpreis' : row.retailer + (row.channel === 'online' ? ' · online' : ''),
-    note: [row.observed_on, row.receipt_line_id ? 'Bon' : '', row.status === 'needs_review' ? 'Zu prüfen' : '',
-      ({offer: 'Angebot', member: 'Mitgliedspreis', coupon: 'Coupon'})[row.price_type],
-      row.valid_until ? 'bis ' + row.valid_until : ''].filter(Boolean).join(' · '),
-  }));
   const today = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Europe/Berlin'}).format(new Date());
-  if (!prices.some(row => row.status !== 'needs_review' && Number(row.price_eur) > 0
-      && row.observed_on <= today && (!row.valid_until || row.valid_until >= today)
-      && !['offer', 'member', 'coupon'].includes(row.price_type))) rows.push({
-    ...guide, id: 'guide', source: 'Richtpreis', note: 'Angenommene Menge',
+  const prices = observations.filter(row => byId.has(row.product_id) && Number(row.price_eur) > 0
+    && row.status !== 'needs_review' && row.observed_on <= today && (!row.valid_until || row.valid_until >= today)
+    && !['offer', 'member', 'coupon'].includes(row.price_type))
+    .sort((a, b) => b.observed_on.localeCompare(a.observed_on) || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+  const markets = ['REWE', 'Lidl', 'Penny', 'Edeka'];
+  const rows = markets.map(market => {
+    const matches = prices.filter(row => normalize(row.retailer) === normalize(market));
+    const row = matches.find(row => row.channel === 'store')
+      ?? matches.find(row => row.channel === 'online' && officialRetailerSource(row.source_url, market));
+    return row ? {...row, product: byId.get(row.product_id), source: market,
+      note: [row.observed_on, row.receipt_line_id ? 'Bon' : row.channel === 'online' ? 'Online' : 'Ladenpreis'].join(' · ')}
+      : {id: market, source: market, missing: true};
   });
+  if (rows.every(row => row.missing)) {
+    const estimate = prices.find(row => row.channel === 'estimate');
+    rows.push({...guide, ...estimate, id: 'guide', source: 'Richtpreis', note: estimate ? 'Hinterlegte Schätzung' : 'Angenommene Menge'});
+  }
   return <>
     <table className="ingredient-price-table">
       <thead><tr><th scope="col">Quelle</th><th scope="col">Preis / Menge</th><th scope="col">Grundpreis</th></tr></thead>
       <tbody>{rows.map(row => {
+        if (row.missing) return <tr key={row.id}><th scope="row">{row.source}</th><td colSpan={2}><small>Kein Referenzpreis</small></td></tr>;
         const unit = row.package_unit;
         const factor = unit === 'piece' ? 1 : 1000;
         return <tr key={row.id}>
@@ -147,7 +150,6 @@ function IngredientPrices({products, observations, guide}) {
         </tr>;
       })}</tbody>
     </table>
-    {prices.length > limit && <button type="button" onClick={() => setLimit(limit + pageSize)}>Weitere laden ({limit} von {prices.length})</button>}
   </>;
 }
 

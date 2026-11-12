@@ -19,7 +19,7 @@ async function all(table) {
   for(let from=0;;from+=500) {
     const {data,error}=await supabase.from(table).select('*').order(table==='food_units'?'code':table==='shopping_price_cache'?'query_key':'id').range(from,from+499).abortSignal(AbortSignal.timeout(15000));
     if(error) throw error;
-    rows.push(...data);
+    rows.push(...data.filter(row => table !== 'food_ingredients' || !row.source?.startsWith('merged_into:')));
     if(data.length<500) return rows;
   }
 }
