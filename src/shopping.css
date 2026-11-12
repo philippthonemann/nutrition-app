@@ -195,3 +195,17 @@
 .shop-item-price strong { font-size:11px; font-weight:500; }
 .shop-recents { padding:0; background:transparent; }
 .shop-recents > button { margin-top:10px; }
+
+.shopping-page .shop-item .shop-item-toggle {
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  min-height:92px;
+}
+.shopping-page .shop-item-actions { justify-content:center; }
+.shopping-page .shop-add { margin:12px 0 20px; }
+.shopping-page .shop-add-entry { margin:0; }
+.shopping-page .shop-add-entry .shop-search { flex:1; min-width:0; }
+.shopping-page .shop-search input { width:100%; min-width:0; font-size:16px; }
+.shopping-page .shop-add form { display:grid; grid-template-columns:minmax(0,1fr); }
