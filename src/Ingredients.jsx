@@ -128,7 +128,10 @@ function IngredientPrices({products, observations, guide}) {
       ({offer: 'Angebot', member: 'Mitgliedspreis', coupon: 'Coupon'})[row.price_type],
       row.valid_until ? 'bis ' + row.valid_until : ''].filter(Boolean).join(' · '),
   }));
-  if (!prices.some(row => row.channel === 'estimate' && row.status !== 'needs_review')) rows.push({
+  const today = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Europe/Berlin'}).format(new Date());
+  if (!prices.some(row => row.status !== 'needs_review' && Number(row.price_eur) > 0
+      && row.observed_on <= today && (!row.valid_until || row.valid_until >= today)
+      && !['offer', 'member', 'coupon'].includes(row.price_type))) rows.push({
     ...guide, id: 'guide', source: 'Richtpreis', note: 'Angenommene Menge',
   });
   return <>

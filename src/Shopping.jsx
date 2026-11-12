@@ -23,7 +23,7 @@ function Modal({title,onClose,children}) {
 }
 function ItemEditor({item,onSave,onClose}) {
   const [quantity,setQuantity]=useState(String(item.quantity));
-  const [category,setCategory]=useState(item.category);
+  const [category,setCategory]=useState(() => categoryFor(item.name, item.category));
   return <Modal title={item.name} onClose={onClose}><form onSubmit={async e=>{e.preventDefault();if(await onSave({quantity:Number(quantity),category}))onClose();}}>
     <label>Menge ({displayUnit(item.unit)})<input autoFocus type="number" min="0.001" max="10000000" step="any" required value={quantity} onChange={e=>setQuantity(e.target.value)}/></label>
     <label>Kategorie<select value={category} onChange={e=>setCategory(e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
@@ -92,7 +92,7 @@ export default function Shopping() {
     retailer,
     total: totals(openItems, retailer, catalog).total,
   }));
-  const order=[...new Set([...(doc?.categories||[]),...CATEGORIES])];
+  const order=[...new Set([...(doc?.categories||[]).filter(category => CATEGORIES.includes(category)),...CATEGORIES])];
   const openKeys = new Set(openItems.map(item => item.merge_key));
   const history = [
     ...visible.filter(item => item.checked).reverse(),
@@ -240,12 +240,11 @@ export default function Shopping() {
 }
 const categoryIcons = {
   'Obst & Gemüse': 'leaf',
-  'Kühlregal': 'drop',
+  'Milch & Käse': 'drop',
   'Fleisch & Fisch': 'utensils',
-  'Brot & Backwaren': 'grain',
-  'Vorrat': 'cube',
-  'Gewürze & Saucen': 'drop',
-  'Tiefkühl': 'snow',
+  'Brot & Gebäck': 'grain',
+  'Zutaten & Gewürze': 'drop',
+  'Fertig- & Tiefkühlprodukte': 'snow',
   'Getränke': 'glass',
   'Haushalt': 'home',
 };
