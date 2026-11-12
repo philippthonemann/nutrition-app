@@ -1628,7 +1628,6 @@ export default function App() {
   return (
     <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'DM Sans',sans-serif", maxWidth: 430, margin: "0 auto", paddingTop: "max(20px, env(safe-area-inset-top))", paddingBottom: 140 }}>
       <div className="q-topbar">
-        <a href="/einkaufen" aria-label="Einkaufslisten öffnen" style={{color:C.muted, marginRight:12}}><Icon name="basket" size={22}/></a>
         {tab === "today" ? <details className="q-date-menu"><summary>{selectedDate === today() ? "Heute" : new Date(selectedDate+"T12:00:00").toLocaleDateString("de-DE",{day:"numeric",month:"short"})}<span aria-hidden="true">⌄</span></summary><div><label>Tag auswählen<input aria-label="Tag auswählen" type="date" max={today()} value={selectedDate} onChange={event => {if(!event.target.value) return;setSelectedDate(event.target.value);event.currentTarget.closest('details').open=false;}}/></label><button onClick={event => {setSelectedDate(today());event.currentTarget.closest('details').open=false;}}>Zu Heute</button></div></details> : <span/>}
         <ProfileMenu/>
       </div>
