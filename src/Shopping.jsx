@@ -5,6 +5,8 @@ import { BottomNav } from './NutritionNav.jsx';
 import InfoTip from './InfoTip.jsx';
 import Icon from './Icon.jsx';
 import {authFetch} from './authFetch';
+import Ingredients from './Ingredients.jsx';
+import {flushSync} from 'react-dom';
 import useShopping from './useShopping';
 import {CATEGORIES,categoryFor,makeItem,normalize,pantry,priceFor,totals,money,researchKey} from '../lib/shopping.js';
 import './theme.css';
@@ -67,6 +69,7 @@ export default function Shopping() {
   const [unit,setUnit]=useState('piece');
   const [recipeOpen,setRecipeOpen]=useState(false);
   const [editing,setEditing]=useState(null);
+  const [ingredientsOpen,setIngredientsOpen]=useState(false);
   const [settings,setSettings]=useState(false);
   const [newName,setNewName]=useState('');
   const [createOpen,setCreateOpen]=useState(false);
@@ -144,6 +147,18 @@ export default function Shopping() {
       <button onClick={() => { listMenuRef.current.open = false; setCreateOpen(true); }}><Icon name="plus" size={18}/> Neue Liste</button>
     </div>
   </details>;
+  const navigation = <BottomNav label="Einkaufsnavigation" active={ingredientsOpen ? 'ingredients' : settings && current ? 'settings' : 'list'} entries={[
+        { key:'list', icon:'basket', title:'Liste', action:() => { setIngredientsOpen(false); setSettings(false); window.scrollTo(0, 0); } },
+        { key:'recipe', icon:'utensils', title:'Rezepte', action:() => { setIngredientsOpen(false); current ? setRecipeOpen(true) : setCreateOpen(true); } },
+        { key:'add', icon:'plus', title:'Artikel hinzufügen', primary:true, action:() => { flushSync(() => setIngredientsOpen(false)); current ? input.current?.focus() : setCreateOpen(true); } },
+        { key:'ingredients', icon:'leaf', title:'Zutaten', action:() => { setIngredientsOpen(true); window.scrollTo(0, 0); } },
+        { key:'settings', icon:'edit', title:'Verwalten', action:() => { setIngredientsOpen(false); current ? setSettings(value => !value) : setCreateOpen(true); } },
+      ]}/>;
+  if (ingredientsOpen) return <main className="shopping-page">
+    <header className="q-topbar shop-header"><ProfileMenu shopping/></header>
+    <div className="shop-main"><Ingredients userId={userId} onCatalogChange={store.refreshCatalog}/></div>
+    {navigation}
+  </main>;
   return <main className="shopping-page">
     <header className="q-topbar shop-header">{listMenu}<ProfileMenu shopping/></header>
     <div className="shop-main">{store.error&&<p className="shop-alert" role="status">{store.error}</p>}{!current?<section className="q-card shop-empty"><Icon name="basket" size={40}/><h2>Dein nächster Einkauf</h2><p>Erstelle eine Liste und füge Artikel oder ganze Rezepte hinzu.</p><button className="shop-primary" onClick={()=>setCreateOpen(true)}>Erste Liste erstellen</button></section>:<>
@@ -204,13 +219,7 @@ export default function Shopping() {
       {recipeOpen&&<RecipePicker catalog={catalog} onClose={()=>setRecipeOpen(false)} onAdd={items=>mutate(current.id,{type:'add',items})}/>}
       {editing&&<ItemEditor key={editing.id} item={editing} onClose={()=>setEditing(null)} onSave={patch=>mutate(current.id,{type:'item',id:editing.id,patch})}/>}
       {priceDetails&&<Modal title={`Preis · ${priceDetails.name}`} onClose={()=>setPriceDetails(null)}>{(()=>{const p=priceFor(priceDetails,selectedMarket,catalog);return <div className="shop-price-detail"><p>{p.label}</p><strong>{money(p.total)}</strong><p>{p.packs} × {p.package_quantity} {displayUnit(p.package_unit)} zu {money(p.price_eur)} je Packung</p><p>Benötigt: {quantityText(priceDetails)}</p>{p.source_url&&<a href={p.source_url} target="_blank" rel="noreferrer">Preisquelle öffnen</a>}{p.kind==='guide'&&<p>Allgemeine Schätzung mit angenommener Packung. Kein bestätigter Ladenpreis.</p>}{p.kind==='online'&&<p>Online-Vergleichspreis. Der Preis vor Ort kann abweichen.</p>}</div>;})()}</Modal>}
-      <BottomNav label="Einkaufsnavigation" active={settings && current ? 'settings' : 'list'} entries={[
-        { key:'list', icon:'basket', title:'Liste', action:() => { setSettings(false); window.scrollTo(0, 0); } },
-        { key:'recipe', icon:'utensils', title:'Rezepte', action:() => current ? setRecipeOpen(true) : setCreateOpen(true) },
-        { key:'add', icon:'plus', title:'Artikel hinzufügen', primary:true, action:() => current ? input.current?.focus() : setCreateOpen(true) },
-        { key:'lists', icon:'down', title:'Listen', action:() => { listMenuRef.current.open = true; window.scrollTo(0, 0); listMenuRef.current.querySelector('summary').focus(); } },
-        { key:'settings', icon:'edit', title:'Verwalten', action:() => current ? setSettings(value => !value) : setCreateOpen(true) },
-      ]}/>
+      {navigation}
       {(store.pending > 0 || settings) && <p className="shop-sync" role="status">
         {store.pending ? `${store.pending} Änderungen ausstehend · ` : ''}{store.status}
         {settings && <button onClick={() => void store.sync()}>Synchronisieren</button>}
