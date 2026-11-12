@@ -205,6 +205,17 @@ export default function Shopping() {
                   placeholder="Artikel hinzufügen" required autoComplete="off"/>
               </label>
               <button type="button" onClick={() => setRecipeOpen(true)}><Icon name="utensils"/> Rezept</button>
+              <label className="shop-view-picker" title={grouped ? 'Nach Kategorien' : 'Alle Artikel'}>
+                <Icon name={grouped ? 'basket' : 'cube'} size={18}/>
+                <select aria-label="Artikelansicht" value={grouped ? 'categories' : 'all'} onChange={event => {
+                  const showCategories = event.target.value === 'categories';
+                  setGrouped(showCategories);
+                  try { localStorage.setItem('shopping-grouped', String(showCategories)); } catch { /* preference is optional */ }
+                }}>
+                  <option value="categories">Nach Kategorien</option>
+                  <option value="all">Alle Artikel</option>
+                </select>
+              </label>
             </div>
             {query.trim() && <>
               <div className="shop-suggestions">{uniqueSuggestions.map(ingredient =>
@@ -226,14 +237,6 @@ export default function Shopping() {
         </div>
         </div>
         {settings&&<section className="q-card shop-settings"><h3>Liste bearbeiten</h3><form onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();if(name)void mutate(current.id,{type:'meta',patch:{name}});}}><label>Listenname<input name="name" defaultValue={doc.name} maxLength={100} required/></label><button>Umbenennen</button></form><h3>Kategorienreihenfolge</h3><ol>{order.map((c,index)=><li key={c}><span>{c}</span><button disabled={index===0} aria-label={`${c} nach oben`} onClick={()=>{const next=[...order];[next[index-1],next[index]]=[next[index],next[index-1]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="up"/></button><button disabled={index===order.length-1} aria-label={`${c} nach unten`} onClick={()=>{const next=[...order];[next[index],next[index+1]]=[next[index+1],next[index]];void mutate(current.id,{type:'meta',patch:{categories:next}});}}><Icon name="down"/></button></li>)}</ol><button onClick={()=>void mutate(current.id,{type:'meta',patch:{archived:true}})}>Liste archivieren</button></section>}
-        {openItems.length > 0 && <div className="shop-view-toggle" role="group" aria-label="Artikelansicht">
-          {[['Kategorien', true], ['Alle', false]].map(([label, value]) =>
-            <button key={label} type="button" aria-pressed={grouped === value} onClick={() => {
-              setGrouped(value);
-              try { localStorage.setItem('shopping-grouped', String(value)); } catch { /* preference is optional */ }
-            }}>{label}</button>
-          )}
-        </div>}
         <div className="shop-articles">{(grouped ? order : ['Alle Artikel']).map(category=>{const items=grouped ? openItems.filter(i=>i.category===category) : openItems;return items.length?<section key={category} className="shop-category"><h3>{category}<small>{items.length}</small></h3><div className="shop-item-grid">{items.map(item=><Item key={item.id} item={item} price={tilePrice(item, selectedMarket, catalog)} onToggle={()=>void mutate(current.id,{type:'item',id:item.id,patch:{checked:true}})} onEdit={()=>setEditing(item)} onPrice={()=>setPriceDetails(item)}/>)}</div></section>:null;})}
         {!openItems.length&&<p className="shop-empty-inline">Deine Liste ist leer.</p>}
         </div><RecentItems recent={recent} catalog={catalog} market={selectedMarket} onPrice={setPriceDetails} limit={recentLimit} onMore={()=>setRecentLimit(recentLimit+20)} onAdd={item=>void add(null,item)}/><p className="shop-research-status" role="status">{researchStatus}</p>
